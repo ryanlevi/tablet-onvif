@@ -2,7 +2,7 @@
 
 Validated on the development Mac during initial creation:
 
-- 57 Python tests pass: authentication (WS-Security/Basic/Digest/replay/time window), SOAP HTTP requests, motion delivery/clear/subscription behavior, XML parser hardening, configuration secrecy/permissions, ingress access control, actual mock HA WebSocket state changes/disconnect, source credential relay and RTSP access configuration.
+- 61 Python tests pass: authentication (WS-Security/Basic/Digest/replay/time window), SOAP HTTP requests, motion delivery/clear/subscription behavior, XML parser hardening, configuration secrecy/permissions, ingress access control, actual mock HA WebSocket state changes/disconnect, source credential relay and RTSP access configuration.
 - Ruff source checks and JavaScript syntax check pass.
 - App metadata, repository metadata, Compose and CI YAML parse.
 - Pinned MediaMTX 1.21.2 official native Darwin ARM64 binary accepted the generated configuration (`--validate-conf`) and started/stopped its RTSP listener. A DESCRIBE request reached the listener (404 expected without a publisher). This does not prove remote authentication or encoded video delivery.
@@ -16,3 +16,5 @@ Live-preview correction (0.1.1): an actual browser rendered successive synthetic
 MVP setup (0.2.0): browser-checked selecting a discovered tablet, enabling it without entering addresses/ports/NVR credentials, opening live video, and viewing the generated Protect connection guide. Regression tests cover generated defaults, preserving existing tuning and credentials, optional source-password handling, disabled-device guidance and authenticated credential retrieval. These use synthetic camera fixtures.
 
 Debug logging (0.2.1): tested Supervisor option precedence/default-off behavior, raw/URL-encoded/base64 credential redaction, authorization header and URL token removal, redaction of exception details, child-pipe draining and dropping entire oversized records. Real browser-preview failure diagnosis still requires logs from the installed app.
+
+Shared credentials (0.2.2): regression tests cover incoming login defaults, linked credential rotation, authenticated fallback when source authentication is removed, preservation of existing NVR credentials, repeated camera usernames and rejection of the reserved anonymous username. These are local tests; real NVR adoption remains unverified.

@@ -42,7 +42,7 @@
       </section>
       <div id="content" hidden>
         <div class="intro">
-          <span class="eyebrow">YOUR TABLET, IN PROTECT</span>
+          <span class="eyebrow">YOUR TABLET, ONVIF READY</span>
           <h1>A camera you already own.</h1>
           <p>Choose your wall tablet. We'll handle the connection settings.</p>
         </div>
@@ -74,8 +74,8 @@
         <details class="advanced panel">
           <summary>Advanced settings</summary>
           <p>
-            Connection troubleshooting. Your camera settings and Protect
-            credentials are kept when these values change.
+            Connection troubleshooting. Your camera settings and NVR credentials
+            are kept when these values change.
           </p>
           <form id="network-form">
             <div class="grid">
@@ -100,7 +100,7 @@
           <div id="errors" class="small"></div>
         </details>
         <footer>
-          Local video · Motion from Home Assistant · Preview release 0.2.1
+          Local video · Motion from Home Assistant · Preview release 0.2.2
         </footer>
       </div>
     </main>
@@ -118,7 +118,7 @@
           </button>
         </div>
         <p id="setup-description">
-          We'll set up video, motion events and the credentials for Protect.
+          We'll set up video, motion events and the NVR connection.
         </p>
         <label
           >Camera name<input id="camera-name" maxlength="100" required /></label
@@ -126,6 +126,9 @@
           ><input type="checkbox" id="source-auth" />The tablet's stream uses a
           password</label
         >
+        <p id="source-login-hint" class="small" hidden>
+          This same login will be used by your NVR.
+        </p>
         <div id="source-fields" class="grid" hidden>
           <label
             >Tablet stream username<input
@@ -146,7 +149,7 @@
               placeholder="Detect automatically"
           /></label>
           <p class="small">
-            Usually detected automatically. Override only if Protect needs a
+            Usually detected automatically. Override only if your NVR needs a
             different address.
           </p>
         </details>
@@ -161,7 +164,7 @@
     </dialog>
     <dialog id="connect-dialog">
       <div class="section-head">
-        <h2>Add to Protect</h2>
+        <h2>Connect to your NVR</h2>
         <button
           id="close-connect"
           class="icon-button"
@@ -170,10 +173,15 @@
           ×
         </button>
       </div>
-      <p>
-        In Protect, enable <strong>Discover Third-Party Cameras</strong>, then
-        adopt this camera using these details.
-      </p>
+      <p>Add an ONVIF camera in your recorder using these details.</p>
+      <p id="login-hint" class="small"></p>
+      <details class="help">
+        <summary>Using UniFi Protect?</summary>
+        <p>
+          Enable <strong>Discover Third-Party Cameras</strong>, then adopt this
+          camera using the login below.
+        </p>
+      </details>
       <label>Camera address<input id="connect-host" readonly /></label>
       <div class="grid">
         <label>Username<input id="connect-user" readonly /></label

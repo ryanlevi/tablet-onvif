@@ -62,6 +62,10 @@ function clearViews() {
 function sourceFields() {
   $("#source-fields").hidden = !$("#source-auth").checked;
   $("#source-user").required = $("#source-auth").checked;
+  const c = editing?.camera;
+  $("#source-login-hint").hidden =
+    !$("#source-auth").checked ||
+    Boolean(c);
 }
 function setup(tablet, camera = null) {
   editing = { tablet, camera };
@@ -124,12 +128,17 @@ async function connection(camera) {
     $("#connect-host").value = details.host;
     $("#connect-user").value = details.username;
     $("#connect-pass").value = details.password;
+    $("#login-hint").textContent = details.uses_tablet_login
+      ? "Use the same username and password as the tablet's camera stream."
+      : "Use the saved NVR login below.";
     $("#connect-pass").type = "password";
     $("#show-password").textContent = "Show password";
     $("#connect-url").value = details.url;
     $("#connect-port").textContent = `ONVIF port: ${details.port}`;
     $("#copy-status").textContent = "";
-    $("#connect-dialog details").open = false;
+    document.querySelectorAll("#connect-dialog details").forEach((details) => {
+      details.open = false;
+    });
     $("#connect-dialog").showModal();
   } catch (e) {
     say(e.message);
@@ -145,7 +154,7 @@ function createView(camera) {
     error = el("p", undefined, "error"),
     actions = el("div", undefined, "actions"),
     live = el("button", "Live view", "secondary"),
-    connect = el("button", "Connect to Protect"),
+    connect = el("button", "Connect to NVR"),
     preview = el("div", undefined, "camera-preview");
   settings.setAttribute("aria-label", `Settings for ${camera.name}`);
   settings.onclick = () =>
@@ -300,7 +309,7 @@ $("#setup-form").onsubmit = async (e) => {
     $("#setup-dialog").close();
     await load();
     say(
-      "Camera enabled. Open Live view to check the picture, then Connect to Protect.",
+      "Camera enabled. Open Live view to check the picture, then Connect to NVR.",
     );
   } catch (e) {
     $("#setup-error").textContent = e.message;

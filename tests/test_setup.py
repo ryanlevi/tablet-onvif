@@ -130,3 +130,92 @@ async def test_sequential_setup_does_not_overwrite_existing_camera(automatic):
     settings, second = await prepare_camera(settings, h, {"stream_entity": "sensor.second_camera_stream"})
     assert first.id != second.id and first.username != second.username and first.password != second.password
     assert len(settings.cameras) == 2 and second.onvif_port != first.onvif_port
+
+
+async def test_new_camera_reuses_incoming_login_even_when_short(automatic):
+    settings, c = await prepare_camera(
+        Settings(),
+        ha(),
+        {
+            "stream_entity": "sensor.garage_camera_stream",
+            "source_auth": True,
+            "source_username": "admin",
+            "source_password": "123456",
+        },
+    )
+    assert c.username == c.source_username == "admin"
+    assert c.password == c.source_password == "123456"
+    settings.validate()
+
+
+async def test_linked_login_follows_source_rotation_and_stays_authenticated(automatic):
+    settings, c = await prepare_camera(
+        Settings(),
+        ha(),
+        {
+            "stream_entity": "sensor.garage_camera_stream",
+            "source_auth": True,
+            "source_username": "admin",
+            "source_password": "123456",
+        },
+    )
+    settings, c = await prepare_camera(
+        settings,
+        ha(),
+        {
+            "stream_entity": c.stream_entity,
+            "source_auth": True,
+            "source_username": "admin",
+            "source_password": "changed",
+        },
+    )
+    assert c.password == c.source_password == "changed"
+    _, c = await prepare_camera(settings, ha(), {"stream_entity": c.stream_entity, "source_auth": False})
+    assert not c.source_password and len(c.password) >= 24 and c.username.startswith("nvr_")
+
+
+async def test_reused_username_can_have_different_path_scoped_passwords(automatic):
+    settings, first = await prepare_camera(
+        Settings(),
+        ha(),
+        {
+            "stream_entity": "sensor.garage_camera_stream",
+            "source_auth": True,
+            "source_username": "admin",
+            "source_password": "first",
+        },
+    )
+    h = ha()
+    h.tablets = lambda: [
+        {
+            "name": "Second",
+            "stream_entity": "sensor.second_camera_stream",
+            "motion_entity": "binary_sensor.second_camera_motion",
+        }
+    ]
+    settings, second = await prepare_camera(
+        settings,
+        h,
+        {
+            "stream_entity": "sensor.second_camera_stream",
+            "source_auth": True,
+            "source_username": "admin",
+            "source_password": "second",
+        },
+    )
+    assert first.username == second.username and first.password != second.password
+    settings.validate()
+
+
+async def test_reserved_anonymous_username_cannot_bypass_nvr_auth(automatic):
+    with pytest.raises(ValueError, match="reserved"):
+        await prepare_camera(
+            Settings(),
+            ha(),
+            {
+                "stream_entity": "sensor.garage_camera_stream",
+                "source_auth": True,
+                "source_username": "any",
+                "source_password": "secret",
+            },
+        )

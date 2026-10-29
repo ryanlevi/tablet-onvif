@@ -62,6 +62,12 @@ async def prepare_camera(settings, ha, payload):
     tablet = next((t for t in ha.tablets() if t["stream_entity"] == entity), None)
     if existing is None and tablet is None:
         raise ValueError("Tablet not found. Refresh the tablet list and try again.")
+    linked_login = existing is None or bool(
+        existing.source_username
+        and existing.source_password
+        and existing.username == existing.source_username
+        and existing.password == existing.source_password
+    )
     if existing:
         camera = Camera(**asdict(existing))
     else:
@@ -103,6 +109,13 @@ async def prepare_camera(settings, ha, payload):
             camera.source_username, camera.source_password = username, password
         else:
             camera.source_username = camera.source_password = ""
+    if linked_login:
+        if camera.source_username and camera.source_password:
+            camera.username, camera.password = camera.source_username, camera.source_password
+        elif existing and existing.source_username:
+            # Removing source authentication must not expose an unauthenticated NVR camera.
+            camera.username = "nvr_" + camera.id
+            camera.password = secrets.token_urlsafe(24)
     camera.enabled = True
     camera.validate()
     data = asdict(settings)

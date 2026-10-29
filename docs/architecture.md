@@ -14,7 +14,7 @@ A trusted administrator selects a tablet's entity and credentials. The HA WebSoc
 
 FFmpeg publishes over loopback to MediaMTX. Loopback publication is allowed, external publication is not. Remote readers need per-camera NVR credentials restricted to that camera's two paths. MediaMTX control, HLS, WebRTC, RTMP, SRT and metrics listeners are disabled. A progress watchdog uses snapshot updates to restart a stalled encoder. A supervisor retries failed video workers and restarts MediaMTX after unexpected termination; availability remains false until fresh frames return.
 
-The iPad password, HA token and NVR password are separate secrets. Configuration responses redact passwords; user-selected source URLs reject embedded credentials.
+The HA token is independent of camera credentials. New cameras default to the iPad stream login for NVR access when provided, otherwise a generated NVR login. Existing distinct NVR logins remain unchanged. Configuration responses redact passwords; user-selected source URLs reject embedded credentials.
 
 ## Home Assistant
 
@@ -32,4 +32,4 @@ This is an interoperability implementation, not a claim to complete Profile S/T 
 
 ## Simple setup
 
-The setup endpoint matches a discovered Companion device, chooses a unique ID and available ONVIF port, detects the local LAN interface used to reach that tablet, and generates a random NVR password. Existing camera identity and tuning survive edits. The address override lives under Advanced. A separate admin-only connection-details endpoint supplies credentials on demand, never in polling responses or logs.
+The setup endpoint matches a discovered Companion device, chooses a unique ID and available ONVIF port, detects the local LAN interface used to reach that tablet, and reuses an authenticated source login or generates a random NVR password. Linked credentials follow source-login changes; removing source authentication generates a strong NVR login. MediaMTX permissions scope each credential pair to its camera paths, allowing repeated usernames. Existing camera identity and tuning survive edits. The address override lives under Advanced. A separate admin-only connection-details endpoint supplies credentials on demand, never in polling responses or logs.

@@ -1,3 +1,10 @@
+# 0.2.2
+
+- Reuse the incoming tablet stream login for newly configured cameras; generate an NVR login when source authentication is absent.
+- Preserve existing NVR logins. Shared logins follow source credential changes.
+- Use generic Connect to NVR wording, with UniFi Protect instructions inside the connection guide.
+- Keep the Tablet ONVIF name and existing installation identity.
+
 # 0.2.1
 
 - Add an opt-in Debug logging switch in the Home Assistant app Configuration tab (off by default).

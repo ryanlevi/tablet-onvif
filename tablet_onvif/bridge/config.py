@@ -40,8 +40,16 @@ class Camera:
             raise ValueError("Advertise host must be a reachable LAN IPv4 address")
         if not 1024 <= self.onvif_port <= 65535:
             raise ValueError("ONVIF port must be between 1024 and 65535")
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", self.username) or len(self.password) < 12:
-            raise ValueError("Use an alphanumeric NVR username and a password of at least 12 characters")
+        shared_login = bool(
+            self.source_username
+            and self.source_password
+            and self.username == self.source_username
+            and self.password == self.source_password
+        )
+        if not re.fullmatch(r"[A-Za-z0-9_.@-]{1,64}", self.username) or self.username == "any":
+            raise ValueError("NVR username must use ASCII letters, digits, _, -, . or @; 'any' is reserved")
+        if len(self.password) < (1 if shared_login else 12):
+            raise ValueError("NVR password must be at least 12 characters unless reusing the tablet's existing login")
         if len(self.password) > 256:
             raise ValueError("Password is too long")
         if not self.stream_entity.startswith("sensor.") or not self.motion_entity.startswith("binary_sensor."):
@@ -96,16 +104,15 @@ class Settings:
         if not 1024 <= self.rtsp_port <= 65535 or self.rtsp_port == 8099:
             raise ValueError("Invalid RTSP port")
         ipaddress.IPv4Address(self.discovery_interface)
-        ids, ports, users = set(), {8099, self.rtsp_port}, set()
+        ids, ports = set(), {8099, self.rtsp_port}
         if len(self.cameras) > 16:
             raise ValueError("Maximum 16 cameras")
         for c in self.cameras:
             c.validate()
-            if c.id in ids or c.onvif_port in ports or c.username in users:
-                raise ValueError("Camera IDs, ONVIF ports and NVR usernames must each be unique")
+            if c.id in ids or c.onvif_port in ports:
+                raise ValueError("Camera IDs and ONVIF ports must each be unique")
             ids.add(c.id)
             ports.add(c.onvif_port)
-            users.add(c.username)
         return self
 
     @classmethod

@@ -2,7 +2,7 @@
 
 Turn a wall-mounted tablet running the Home Assistant Companion App into an authenticated ONVIF camera, including motion events from its existing Camera Motion sensor.
 
-**Developer preview — 0.2.1.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
+**Developer preview — 0.2.2.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
 
 ## What it does
 
@@ -36,8 +36,8 @@ Start the app and select **Open Web UI**:
 
 1. Select **Set up** beside your tablet.
 2. Keep its suggested name, or rename it. If the tablet stream is password protected, enter that username and password.
-3. Select **Enable camera**. The bridge detects its LAN address, selects a free ONVIF port, and generates unique NVR credentials.
-4. Open **Live view** to check the picture. Select **Connect to Protect** for the camera address and generated credentials.
+3. Select **Enable camera**. The bridge detects its LAN address, selects a free ONVIF port, and reuses the tablet stream login for the NVR. If the stream has no login, it generates NVR credentials.
+4. Open **Live view** to check the picture. Select **Connect to NVR** for the camera address and login. The dialog includes a UniFi Protect guide.
 
 The main page contains your cameras and discovered tablets. Network controls are under **Advanced settings**. Camera settings offer a bridge-address override if routing selects the wrong interface. Existing camera IDs, credentials, ports and video tuning are preserved when changing the name or source login.
 

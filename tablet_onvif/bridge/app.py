@@ -279,6 +279,12 @@ class Bridge:
                     "url": f"http://{camera.advertise_host}:{camera.onvif_port}/onvif/device_service",
                     "username": camera.username,
                     "password": camera.password,
+                    "uses_tablet_login": bool(
+                        camera.source_username
+                        and camera.source_password
+                        and camera.username == camera.source_username
+                        and camera.password == camera.source_password
+                    ),
                 }
             )
 
