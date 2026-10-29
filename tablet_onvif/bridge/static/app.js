@@ -1,147 +1,50 @@
 "use strict";
 let config,
+  available = [],
   token = sessionStorage.getItem("tablet-onvif-token") || "",
-  authorized = false;
-const $ = (s) => document.querySelector(s);
-function say(text) {
-  $("#message").textContent = text;
-}
-function element(tag, text, cls) {
+  authorized = false,
+  editing = null,
+  polling = false;
+const $ = (s) => document.querySelector(s),
+  views = new Map();
+function el(tag, text, cls) {
   const e = document.createElement(tag);
   if (text !== undefined) e.textContent = text;
   if (cls) e.className = cls;
   return e;
 }
+function say(text) {
+  $("#message").textContent = text;
+  $("#message").hidden = !text;
+}
 async function api(path, options = {}) {
-  const headers = { Authorization: `Bearer ${token}`, ...options.headers };
   const r = await fetch(`api/${path}`, {
     ...options,
-    headers,
     cache: "no-store",
+    headers: { Authorization: `Bearer ${token}`, ...options.headers },
   });
   if (!r.ok) {
-    let text = "Request failed";
+    let message = "Could not complete the request.";
     try {
-      text = (await r.json()).error || text;
+      message = (await r.json()).error || message;
     } catch {}
-    throw new Error(
+    const error = new Error(
       r.status === 401
-        ? "Sign in with the bridge admin token, or open this page through Home Assistant ingress."
-        : text,
+        ? "Open this page through Home Assistant, or enter your admin token."
+        : message,
     );
+    error.status = r.status;
+    throw error;
   }
   return r;
 }
-const fields = [
-  ["id", "Camera ID", "text"],
-  ["name", "Display name", "text"],
-  ["advertise_host", "Bridge LAN IPv4", "text"],
-  ["onvif_port", "ONVIF port", "number"],
-  ["stream_entity", "Camera Stream entity", "text"],
-  ["motion_entity", "Camera Motion entity", "text"],
-  ["username", "NVR username", "text"],
-  ["password", "NVR password (12+ characters)", "password"],
-  ["source_url", "Source URL override (optional)", "url"],
-  ["source_username", "iPad stream username", "text"],
-  ["source_password", "iPad stream password", "password"],
-  ["width", "Main width", "number"],
-  ["height", "Main height", "number"],
-  ["fps", "Frames per second", "number"],
-  ["bitrate", "Main bitrate (kbps)", "number"],
-];
-function renderCameras() {
-  $("#cameras").replaceChildren();
-  config.cameras.forEach((c, index) => {
-    const card = element("div", undefined, "camera"),
-      row = element("div", undefined, "row");
-    row.append(element("h3", c.name || "New camera"));
-    const remove = element("button", "Remove", "secondary");
-    remove.type = "button";
-    remove.onclick = () => {
-      config.cameras.splice(index, 1);
-      renderCameras();
-    };
-    row.append(remove);
-    card.append(row);
-    const grid = element("div", undefined, "grid");
-    fields.forEach(([key, title, type]) => {
-      const label = element("label", title),
-        input = document.createElement("input");
-      input.type = type;
-      input.value = c[key] ?? "";
-      input.autocomplete = type === "password" ? "new-password" : "off";
-      if (type === "password" && c[key + "_set"])
-        input.placeholder = "Saved — leave blank to retain";
-      input.oninput = () => {
-        c[key] = type === "number" ? Number(input.value) : input.value;
-      };
-      label.append(input);
-      grid.append(label);
-    });
-    const label = element("label"),
-      checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = c.enabled;
-    checkbox.onchange = () => (c.enabled = checkbox.checked);
-    label.append(checkbox, document.createTextNode("Camera enabled"));
-    card.append(grid, label);
-    $("#cameras").append(card);
-  });
+function jsonOptions(method, data) {
+  return {
+    method,
+    headers: { "Content-Type": "application/json", "X-Tablet-ONVIF": "1" },
+    body: JSON.stringify(data),
+  };
 }
-function addCamera(tablet) {
-  const used = new Set(config.cameras.map((c) => c.id));
-  let id = "tablet";
-  let n = 1;
-  while (used.has(id)) id = `tablet_${++n}`;
-  const ports = new Set(config.cameras.map((c) => c.onvif_port));
-  let port = 8101;
-  while (ports.has(port)) port++;
-  config.cameras.push({
-    id,
-    name: tablet?.name || "Wall tablet",
-    stream_entity: tablet?.stream_entity || "",
-    motion_entity: tablet?.motion_entity || "",
-    advertise_host: "",
-    onvif_port: port,
-    username: `nvr_${id}`,
-    password: "",
-    source_url: "",
-    source_username: "",
-    source_password: "",
-    width: 1280,
-    height: 720,
-    fps: 15,
-    bitrate: 1800,
-    enabled: true,
-  });
-  renderCameras();
-}
-async function tablets() {
-  const items = await (await api("tablets")).json();
-  $("#tablets").replaceChildren();
-  if (!items.length)
-    $("#tablets").append(
-      element(
-        "p",
-        "No Companion camera devices found yet. Check the HA connection and enable camera sensors on the tablet.",
-      ),
-    );
-  for (const t of items) {
-    const row = element("div", undefined, "camera");
-    row.append(
-      element("h3", t.name),
-      element(
-        "p",
-        `Stream: ${t.stream_state}; motion: ${t.motion_state}; stream address ${t.stream_url_available ? "available" : "not reported yet"}.`,
-      ),
-    );
-    const button = element("button", "Use this tablet", "secondary");
-    button.onclick = () => addCamera(t);
-    row.append(button);
-    $("#tablets").append(row);
-  }
-}
-const liveViews = new Map();
 function stopView(view) {
   if (view.image) {
     view.image.onerror = null;
@@ -149,46 +52,129 @@ function stopView(view) {
     view.image.remove();
     view.image = null;
   }
-  view.button.textContent = "Show live stream";
+  view.live.textContent = "Live view";
 }
 function clearViews() {
-  for (const view of liveViews.values()) stopView(view);
-  liveViews.clear();
+  for (const view of views.values()) stopView(view);
+  views.clear();
   $("#status").replaceChildren();
 }
-function createView(camera) {
-  const card = element("div", undefined, "status-card"),
-    title = element("h3"),
-    info = element("p"),
-    address = element("code"),
-    error = element("p"),
-    preview = element("div", undefined, "live-preview"),
-    button = element("button", "Show live stream", "secondary"),
-    note = element(
-      "p",
-      "Live preview reads the iPad directly. RTSP status above shows the NVR encoder separately.",
-      "muted",
+function sourceFields() {
+  $("#source-fields").hidden = !$("#source-auth").checked;
+  $("#source-user").required = $("#source-auth").checked;
+}
+function setup(tablet, camera = null) {
+  editing = { tablet, camera };
+  $("#setup-title").textContent = camera ? "Camera settings" : "Enable camera";
+  $("#camera-name").value = camera?.name || tablet.name;
+  $("#source-auth").checked = Boolean(camera?.source_username);
+  $("#source-user").value = camera?.source_username || "";
+  $("#source-pass").value = "";
+  $("#source-pass").placeholder = camera?.source_password_set
+    ? "Saved — leave blank to keep"
+    : "";
+  $("#bridge-host").value = camera?.advertise_host || "";
+  $("#setup-error").textContent = "";
+  $("#enable-camera").textContent = camera ? "Save changes" : "Enable camera";
+  $("#remove-camera").hidden = !camera;
+  sourceFields();
+  $("#setup-dialog details").open = false;
+  $("#setup-dialog").showModal();
+}
+function renderTablets() {
+  const root = $("#tablets");
+  root.replaceChildren();
+  const unused = available.filter(
+    (t) => !config.cameras.some((c) => c.stream_entity === t.stream_entity),
+  );
+  for (const t of unused) {
+    const row = el("div", undefined, "tablet"),
+      body = el("div");
+    body.append(el("h3", t.name));
+    const ready =
+      t.stream_url_available &&
+      !["unknown", "unavailable"].includes(t.stream_state);
+    body.append(
+      el(
+        "p",
+        ready ? "Camera stream found" : "Enable Camera Stream on this tablet",
+      ),
     );
+    const add = el("button", "Set up", "secondary");
+    add.onclick = () => setup(t);
+    row.append(body, add);
+    root.append(row);
+  }
+  if (!unused.length)
+    root.append(
+      el(
+        "p",
+        available.length
+          ? "All discovered tablets have been added."
+          : "Waiting for tablets. Enable the camera sensors in the Companion App, then refresh.",
+        "small",
+      ),
+    );
+}
+async function connection(camera) {
+  try {
+    const details = await (
+      await api(`connection/${encodeURIComponent(camera.id)}`)
+    ).json();
+    $("#connect-host").value = details.host;
+    $("#connect-user").value = details.username;
+    $("#connect-pass").value = details.password;
+    $("#connect-pass").type = "password";
+    $("#show-password").textContent = "Show password";
+    $("#connect-url").value = details.url;
+    $("#connect-port").textContent = `ONVIF port: ${details.port}`;
+    $("#copy-status").textContent = "";
+    $("#connect-dialog details").open = false;
+    $("#connect-dialog").showModal();
+  } catch (e) {
+    say(e.message);
+  }
+}
+function createView(camera) {
+  const card = el("article", undefined, "camera-card"),
+    body = el("div", undefined, "camera-body"),
+    head = el("div", undefined, "section-head"),
+    title = el("h3"),
+    settings = el("button", "⋯", "icon-button"),
+    info = el("p", undefined, "status-line"),
+    error = el("p", undefined, "error"),
+    actions = el("div", undefined, "actions"),
+    live = el("button", "Live view", "secondary"),
+    connect = el("button", "Connect to Protect"),
+    preview = el("div", undefined, "camera-preview");
+  settings.setAttribute("aria-label", `Settings for ${camera.name}`);
+  settings.onclick = () =>
+    setup({ stream_entity: camera.stream_entity, name: camera.name }, camera);
+  connect.onclick = () => connection(camera);
+  head.append(title, settings);
+  actions.append(live, connect);
+  body.append(head, info, error, actions);
+  card.append(body, preview);
   const view = {
     card,
     title,
     info,
-    address,
     error,
+    live,
     preview,
-    button,
     image: null,
     previewError: "",
+    loading: false,
   };
-  button.type = "button";
-  button.onclick = async () => {
+  live.onclick = async () => {
     if (view.image) {
       stopView(view);
       return;
     }
-    button.disabled = true;
+    live.disabled = true;
+    view.loading = true;
     view.previewError = "";
-    error.textContent = "Connecting to the tablet camera…";
+    error.textContent = "Connecting to your tablet…";
     try {
       await api(`source/${encodeURIComponent(camera.id)}`);
       await api("preview-session", {
@@ -201,79 +187,84 @@ function createView(camera) {
       image.onerror = () => {
         stopView(view);
         view.previewError =
-          "Live stream interrupted or unreadable. Keep the Companion App open, check the camera credentials, and try again.";
+          "The live view stopped. Keep Home Assistant open on the tablet, then try again.";
         error.textContent = view.previewError;
       };
       image.src = `api/live/${encodeURIComponent(camera.id)}`;
       preview.append(image);
-      button.textContent = "Stop live stream";
+      live.textContent = "Stop live view";
       error.textContent = "";
     } catch (e) {
       view.previewError = e.message;
       error.textContent = e.message;
     } finally {
-      button.disabled = false;
+      live.disabled = false;
+      view.loading = false;
     }
   };
-  card.append(title, info, address, error, button, note, preview);
+  views.set(camera.id, view);
   $("#status").append(card);
-  liveViews.set(camera.id, view);
   return view;
 }
 async function status() {
   const s = await (await api("status")).json();
   $("#connection").textContent = s.ha_connected
     ? "Home Assistant connected"
-    : "Home Assistant disconnected";
+    : "Connecting to Home Assistant…";
+  $("#connection").dataset.online = String(s.ha_connected);
   $("#errors").textContent = [s.ha_error, ...s.errors]
     .filter(Boolean)
-    .join(" · ");
-  const cameras = config.cameras.filter((c) => c.enabled);
-  const ids = new Set(cameras.map((c) => c.id));
-  for (const [id, view] of liveViews) {
+    .join("\n");
+  const ids = new Set(config.cameras.map((c) => c.id));
+  for (const [id, view] of views) {
     if (!ids.has(id)) {
       stopView(view);
       view.card.remove();
-      liveViews.delete(id);
+      views.delete(id);
     }
   }
-  $("#status .empty-status")?.remove();
-  for (const camera of cameras) {
-    const c = s.cameras.find((x) => x.id === camera.id);
-    const view = liveViews.get(camera.id) || createView(camera);
+  $("#status .empty")?.remove();
+  for (const camera of config.cameras) {
+    const c = s.cameras.find((x) => x.id === camera.id),
+      view = views.get(camera.id) || createView(camera);
     view.title.textContent = camera.name;
-    view.info.textContent = c
-      ? `RTSP video ${c.video_available ? "live" : "unavailable"} · Motion ${c.motion_available ? (c.motion ? "active" : "clear") : "unavailable"} · NVR subscriptions ${c.subscriptions}`
-      : "RTSP runtime unavailable. You can still check the iPad source using the live preview.";
-    view.address.textContent = c?.onvif_url || "";
-    // Keep the stream element mounted during each status poll.
-    if (!view.image && !view.button.disabled)
+    view.info.textContent = !camera.enabled
+      ? "Camera paused"
+      : c?.video_available
+        ? `Video ready · Motion ${c.motion_available ? (c.motion ? "detected" : "clear") : "unavailable"}`
+        : "Waiting for camera video";
+    if (!view.image && !view.live.disabled)
       view.error.textContent = view.previewError || c?.error || "";
+    if (!view.loading) view.live.disabled = !camera.enabled;
   }
-  if (!cameras.length)
+  if (!config.cameras.length)
     $("#status").append(
-      element(
-        "p",
-        "Add and save your first camera to start the bridge.",
-        "empty-status",
+      el(
+        "div",
+        "No cameras yet. Choose a tablet below to get started.",
+        "empty",
       ),
     );
 }
-async function connect() {
+async function refresh() {
+  available = await (await api("tablets")).json();
+  renderTablets();
+}
+async function load() {
   try {
     config = await (await api("config")).json();
-    clearViews();
     $("#ha-url").value = config.ha_url;
     $("#rtsp-port").value = config.rtsp_port;
     $("#interface").value = config.discovery_interface;
-    renderCameras();
-    await tablets();
+    clearViews();
+    await refresh();
     await status();
     authorized = true;
     $("#login").hidden = true;
     $("#content").hidden = false;
     say("");
   } catch (e) {
+    if (e.status === 401) $("#login").hidden = false;
     say(e.message);
   }
 }
@@ -281,35 +272,113 @@ $("#login-form").onsubmit = (e) => {
   e.preventDefault();
   token = $("#token").value;
   sessionStorage.setItem("tablet-onvif-token", token);
-  connect();
+  load();
 };
-$("#ingress").onclick = () => {
-  token = "";
-  connect();
-};
-$("#add").onclick = () => addCamera();
-$("#refresh").onclick = () => tablets().catch((e) => say(e.message));
-$("#settings").onsubmit = async (e) => {
+$("#refresh").onclick = () => refresh().catch((e) => say(e.message));
+$("#source-auth").onchange = sourceFields;
+$("#close-setup").onclick = () => $("#setup-dialog").close();
+$("#setup-dialog").addEventListener("close", () => {
+  $("#source-pass").value = "";
+});
+$("#setup-form").onsubmit = async (e) => {
   e.preventDefault();
-  $("#save").disabled = true;
+  const button = $("#enable-camera");
+  button.disabled = true;
+  $("#setup-error").textContent = "";
   try {
-    config.ha_url = $("#ha-url").value;
-    config.rtsp_port = Number($("#rtsp-port").value);
-    config.discovery_interface = $("#interface").value;
-    await api("config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Tablet-ONVIF": "1" },
-      body: JSON.stringify(config),
-    });
-    await connect();
-    say("Saved. The bridge is reconnecting to Home Assistant and the tablets.");
+    await api(
+      "setup",
+      jsonOptions("POST", {
+        stream_entity: editing.tablet.stream_entity,
+        name: $("#camera-name").value,
+        source_auth: $("#source-auth").checked,
+        source_username: $("#source-user").value,
+        source_password: $("#source-pass").value,
+        bridge_host: $("#bridge-host").value.trim(),
+      }),
+    );
+    $("#setup-dialog").close();
+    await load();
+    say(
+      "Camera enabled. Open Live view to check the picture, then Connect to Protect.",
+    );
+  } catch (e) {
+    $("#setup-error").textContent = e.message;
+  } finally {
+    button.disabled = false;
+  }
+};
+$("#remove-camera").onclick = async () => {
+  if (
+    !editing?.camera ||
+    !confirm(`Remove ${editing.camera.name} from this bridge?`)
+  )
+    return;
+  try {
+    const next = {
+      ...config,
+      cameras: config.cameras.filter((c) => c.id !== editing.camera.id),
+    };
+    await api("config", jsonOptions("PUT", next));
+    $("#setup-dialog").close();
+    await load();
+  } catch (e) {
+    $("#setup-error").textContent = e.message;
+  }
+};
+$("#close-connect").onclick = () => $("#connect-dialog").close();
+$("#connect-dialog").addEventListener("close", () => {
+  $("#connect-pass").value = "";
+});
+$("#show-password").onclick = () => {
+  const field = $("#connect-pass");
+  field.type = field.type === "password" ? "text" : "password";
+  $("#show-password").textContent =
+    field.type === "password" ? "Show password" : "Hide password";
+};
+$("#copy-password").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("#connect-pass").value);
+    $("#copy-status").textContent = "Password copied.";
+  } catch {
+    $("#connect-pass").focus();
+    $("#connect-pass").select();
+    $("#copy-status").textContent =
+      "Password selected. Press Ctrl+C or Command+C to copy.";
+  }
+};
+$("#network-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const button = e.submitter;
+  button.disabled = true;
+  try {
+    await api(
+      "config",
+      jsonOptions("PUT", {
+        ...config,
+        ha_url: $("#ha-url").value,
+        rtsp_port: Number($("#rtsp-port").value),
+        discovery_interface: $("#interface").value,
+      }),
+    );
+    await load();
+    say("Network settings saved. Cameras are reconnecting.");
   } catch (e) {
     say(e.message);
   } finally {
-    $("#save").disabled = false;
+    button.disabled = false;
   }
 };
-setInterval(() => {
-  if (authorized) status().catch((e) => say(e.message));
+setInterval(async () => {
+  if (!authorized || polling) return;
+  polling = true;
+  try {
+    await status();
+    await refresh();
+  } catch (e) {
+    say(e.message);
+  } finally {
+    polling = false;
+  }
 }, 5000);
-connect();
+load();

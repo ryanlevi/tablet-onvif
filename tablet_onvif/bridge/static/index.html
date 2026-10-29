@@ -9,40 +9,75 @@
   <body>
     <main>
       <header>
-        <div>
-          <span class="eyebrow">HOME ASSISTANT · COMPANION CAMERAS</span>
-          <h1>Tablet ONVIF</h1>
-          <p>Your wall tablet, available to your NVR.</p>
+        <div class="brand">
+          <span class="mark" aria-hidden="true">▣</span
+          ><span>Tablet ONVIF</span>
         </div>
-        <span class="badge">Developer preview · 0.1.1</span>
+        <span id="connection" class="connection"
+          >Connecting to Home Assistant…</span
+        >
       </header>
-      <div id="message" role="status" aria-live="polite"></div>
-      <section id="login">
-        <h2>Connect to the bridge</h2>
+      <div
+        id="message"
+        class="notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+      <section id="login" class="panel narrow" hidden>
+        <h1>Connect to your bridge</h1>
         <p>
-          For standalone Docker, enter the admin token stored in the data
-          directory. Home Assistant ingress signs you in automatically.
+          Opening from Home Assistant signs you in automatically. Standalone
+          installs use the admin token.
         </p>
         <form id="login-form">
           <label
             >Admin token<input
               id="token"
               type="password"
-              autocomplete="off" /></label
+              autocomplete="off"
+              required /></label
           ><button>Connect</button>
         </form>
-        <button id="ingress" class="secondary">
-          Open through Home Assistant ingress
-        </button>
       </section>
       <div id="content" hidden>
-        <section>
-          <div class="row">
-            <h2>Connection</h2>
-            <span id="connection" class="badge"></span>
+        <div class="intro">
+          <span class="eyebrow">YOUR TABLET, IN PROTECT</span>
+          <h1>A camera you already own.</h1>
+          <p>Choose your wall tablet. We'll handle the connection settings.</p>
+        </div>
+        <section aria-labelledby="cameras-heading">
+          <div class="section-head">
+            <h2 id="cameras-heading">Your cameras</h2>
           </div>
-          <div id="errors"></div>
-          <form id="settings">
+          <div id="status" class="camera-grid"></div>
+        </section>
+        <section class="panel" aria-labelledby="tablets-heading">
+          <div class="section-head">
+            <div>
+              <h2 id="tablets-heading">Add a tablet</h2>
+              <p class="small">Devices found in Home Assistant.</p>
+            </div>
+            <button id="refresh" class="secondary">Refresh</button>
+          </div>
+          <div id="tablets"></div>
+          <details class="help">
+            <summary>Don't see your tablet?</summary>
+            <p>
+              On the tablet, open Home Assistant → Settings → Companion app →
+              Sensors. Enable <strong>Camera Stream</strong> and
+              <strong>Camera Motion</strong>, then keep the app open in kiosk
+              mode.
+            </p>
+          </details>
+        </section>
+        <details class="advanced panel">
+          <summary>Advanced settings</summary>
+          <p>
+            Connection troubleshooting. Your camera settings and Protect
+            credentials are kept when these values change.
+          </p>
+          <form id="network-form">
             <div class="grid">
               <label
                 >Home Assistant URL<input
@@ -60,46 +95,103 @@
                 >Discovery interface IPv4<input id="interface" required
               /></label>
             </div>
-            <p class="muted">
-              The default HA URL uses the Supervisor connection. Docker installs
-              use HA_URL and HA_TOKEN. Use the host’s LAN IPv4 as the discovery
-              interface if multicast uses the wrong network.
-            </p>
-            <div class="row">
-              <h2>Cameras</h2>
-              <button id="add" type="button" class="secondary">
-                Add camera manually
-              </button>
-            </div>
-            <div id="cameras"></div>
-            <p class="muted">
-              Saving restarts the video bridge and disconnects NVR streams
-              briefly. Empty password fields retain saved secrets.
-            </p>
-            <button id="save">Save and restart bridge</button>
+            <button class="secondary">Save network settings</button>
           </form>
-        </section>
-        <section>
-          <div class="row">
-            <h2>Available tablets</h2>
-            <button id="refresh" class="secondary">Refresh</button>
-          </div>
-          <p class="muted">
-            Enable Camera Stream and Camera Motion in the iPad’s Companion App.
-            Keep the app open in kiosk mode.
-          </p>
-          <div id="tablets"></div>
-        </section>
-        <section>
-          <h2>Live status</h2>
-          <div id="status"></div>
-        </section>
+          <div id="errors" class="small"></div>
+        </details>
         <footer>
-          Local video. Direct Home Assistant motion events. No MQTT required.
-          ONVIF compatibility is under validation.
+          Local video · Motion from Home Assistant · Preview release 0.2.0
         </footer>
       </div>
     </main>
+    <dialog id="setup-dialog">
+      <form id="setup-form">
+        <div class="section-head">
+          <h2 id="setup-title">Enable camera</h2>
+          <button
+            type="button"
+            class="icon-button"
+            id="close-setup"
+            aria-label="Close setup"
+          >
+            ×
+          </button>
+        </div>
+        <p id="setup-description">
+          We'll set up video, motion events and the credentials for Protect.
+        </p>
+        <label
+          >Camera name<input id="camera-name" maxlength="100" required /></label
+        ><label class="check"
+          ><input type="checkbox" id="source-auth" />The tablet's stream uses a
+          password</label
+        >
+        <div id="source-fields" class="grid" hidden>
+          <label
+            >Tablet stream username<input
+              id="source-user"
+              autocomplete="off" /></label
+          ><label
+            >Tablet stream password<input
+              id="source-pass"
+              type="password"
+              autocomplete="new-password"
+          /></label>
+        </div>
+        <details class="help">
+          <summary>Advanced</summary>
+          <label
+            >Bridge LAN address<input
+              id="bridge-host"
+              placeholder="Detect automatically"
+          /></label>
+          <p class="small">
+            Usually detected automatically. Override only if Protect needs a
+            different address.
+          </p>
+        </details>
+        <p id="setup-error" class="error" role="alert"></p>
+        <div class="actions">
+          <button id="enable-camera">Enable camera</button
+          ><button type="button" id="remove-camera" class="danger" hidden>
+            Remove camera
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="connect-dialog">
+      <div class="section-head">
+        <h2>Add to Protect</h2>
+        <button
+          id="close-connect"
+          class="icon-button"
+          aria-label="Close connection details"
+        >
+          ×
+        </button>
+      </div>
+      <p>
+        In Protect, enable <strong>Discover Third-Party Cameras</strong>, then
+        adopt this camera using these details.
+      </p>
+      <label>Camera address<input id="connect-host" readonly /></label>
+      <div class="grid">
+        <label>Username<input id="connect-user" readonly /></label
+        ><label
+          >Password<input id="connect-pass" type="password" readonly
+        /></label>
+      </div>
+      <div class="actions">
+        <button id="copy-password">Copy password</button
+        ><button id="show-password" class="secondary">Show password</button>
+      </div>
+      <p id="copy-status" class="small" role="status"></p>
+      <details class="help">
+        <summary>Manual adoption</summary>
+        <label>ONVIF service URL<input id="connect-url" readonly /></label>
+        <p id="connect-port" class="small"></p>
+      </details>
+    </dialog>
     <script src="static/app.js" defer></script>
   </body>
 </html>

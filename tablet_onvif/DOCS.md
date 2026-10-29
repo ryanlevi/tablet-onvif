@@ -2,9 +2,10 @@
 
 Developer preview: actual Protect adoption is pending validation. Install, start and open the Web UI through Home Assistant ingress. Enable Camera Stream and Camera Motion in the iPad Companion App and keep it open in kiosk mode.
 
-Select your tablet, set the HA host LAN IPv4, choose a free ONVIF port, and enter a unique NVR username/password (at least 12 characters). Source username/password are the separate credentials configured on the tablet. The stream URL normally comes from the Camera Stream sensor's Stream URL attribute. Save to start video and event services.
+Select **Set up** next to your tablet. Keep its name or choose a new one, and enter its camera-stream login only if it uses a password. Select **Enable camera**. Bridge address, port and NVR credentials are configured automatically.
 
-The status area shows video availability, motion state, subscriptions and coarse source errors. Select **Show live stream** to open a continuous camera preview. The preview remains open during status refreshes and can diagnose the tablet feed even when RTSP encoding is unavailable. Its source credentials stay server-side. Preview success does not by itself prove that NVR video works. Configure Protect or another NVR with the displayed ONVIF endpoint and NVR credentials. RTSP reads use the same NVR credentials.
+Each camera has **Live view** and **Connect to Protect** buttons. The connection guide shows the address and generated login for Protect. These are separate from the tablet's source credentials. Networking is tucked under Advanced settings; a per-camera address override is available for unusual network layouts.
+The camera card shows video and motion availability. Select **Live view** to open a continuous camera preview. The preview remains open during status refreshes and can diagnose the tablet feed even when RTSP encoding is unavailable. Its source credentials stay server-side. Preview success does not by itself prove that NVR video works. Configure Protect or another NVR with the displayed ONVIF endpoint and NVR credentials. RTSP reads use the same NVR credentials.
 
 Motion is derived directly from the selected binary sensor; no MQTT or extra automation is needed. The app clears stale motion on HA disconnect/unavailable. Check the tablet's own clear delay settings to control event duration.
 

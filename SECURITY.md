@@ -11,3 +11,5 @@ The ONVIF endpoint supports WS-Security UsernameToken PasswordDigest with timest
 To report a security defect before a public remote repository exists, contact the repository owner directly. After publication, enable GitHub private vulnerability reporting. Do not publish exploit details or secrets in a public issue.
 
 Standalone live previews use a short-lived HTTP-only, SameSite=Strict cookie limited to `/api/live/`. It authorizes only camera preview requests, not configuration access. HA ingress previews continue to require the Supervisor peer address. Camera source credentials and the admin bearer token are not placed in image URLs.
+
+The Connect to Protect dialog intentionally reveals a camera’s NVR credentials only after an authenticated user opens it. Normal configuration, status, and setup responses remain redacted. Closing the dialog clears the password input. Auto-generated credentials are per-camera and independent of tablet stream logins.

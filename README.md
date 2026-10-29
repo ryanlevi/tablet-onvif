@@ -2,7 +2,7 @@
 
 Turn a wall-mounted tablet running the Home Assistant Companion App into an authenticated ONVIF camera, including motion events from its existing Camera Motion sensor.
 
-**Developer preview — 0.1.1.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
+**Developer preview — 0.2.0.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
 
 ## What it does
 
@@ -34,12 +34,14 @@ For local development, copy the entire `tablet_onvif` directory into the HA loca
 
 Start the app and select **Open Web UI**:
 
-1. Wait for Home Assistant to connect. The Supervisor provides the HA API token automatically.
-2. Select **Use this tablet**, or configure entity IDs manually if registry discovery isn't available.
-3. Set the bridge host's LAN IPv4 address (the HA host address, not the iPad address), a free ONVIF TCP port, and a unique NVR username/password.
-4. Enter the iPad stream credentials separately. The URL can be discovered from the Camera Stream sensor.
-5. Save. In Live status, select **Show live stream** to check the tablet feed. The preview reads MJPEG directly from the iPad; RTSP video status separately reports the NVR encoder. A working preview alone does not establish RTSP/ONVIF compatibility.
-6. Add the ONVIF endpoint to your NVR with the configured **NVR** credentials. The ONVIF endpoint returns an RTSP URL that uses the same credentials. The iPad source password is never used for NVR login.
+1. Select **Set up** beside your tablet.
+2. Keep its suggested name, or rename it. If the tablet stream is password protected, enter that username and password.
+3. Select **Enable camera**. The bridge detects its LAN address, selects a free ONVIF port, and generates unique NVR credentials.
+4. Open **Live view** to check the picture. Select **Connect to Protect** for the camera address and generated credentials.
+
+The main page contains your cameras and discovered tablets. Network controls are under **Advanced settings**. Camera settings offer a bridge-address override if routing selects the wrong interface. Existing camera IDs, credentials, ports and video tuning are preserved when changing the name or source login.
+
+The source preview reads MJPEG directly from the iPad. NVR video still depends on the H.264 encoder and ONVIF bridge, so preview success alone does not establish Protect compatibility. The settings dialog lets you remove a camera or change its source credentials. Normal setup does not expose entity IDs, codec choices, stream dimensions or manually constructed URLs.
 
 For distribution, publish this Git repository and add its actual GitHub URL to the HA Apps store repositories. No remote repository has been created by this source package.
 

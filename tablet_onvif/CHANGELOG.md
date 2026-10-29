@@ -1,3 +1,12 @@
+# 0.2.0
+
+- Simplify setup to choosing a tablet, naming it and optionally entering its stream credentials.
+- Detect the bridge LAN address, select an available camera port and generate NVR credentials automatically.
+- Add a Connect to Protect guide with explicit credential reveal/copy and optional manual adoption details.
+- Show existing cameras as compact live-view cards; move networking into collapsed Advanced settings.
+- Preserve existing camera identity, passwords, stream tuning and ports when editing a camera.
+- Automatically refresh device discovery and provide actionable messages when tablet sensors are disabled.
+
 # 0.1.1
 
 - Add a live MJPEG viewer to the ingress setup UI, available even before RTSP encoding succeeds.

@@ -28,4 +28,8 @@ This is an interoperability implementation, not a claim to complete Profile S/T 
 
 ## Data and configuration
 
-`/data/settings.json` contains settings and passwords, mode 0600. Installation UUID and standalone admin token live alongside it. Saves validate before stopping the runtime; a failed apply attempts to restore the prior runtime. Changes restart all media streams. The UI never receives saved passwords. Empty secret fields retain prior values; to remove source credentials, clear the source username or remove/recreate the camera.
+`/data/settings.json` contains settings and passwords, mode 0600. Installation UUID and standalone admin token live alongside it. Saves validate before stopping the runtime; a failed apply attempts to restore the prior runtime. Changes restart all media streams. Normal configuration responses never return saved passwords. An explicit authenticated connection-details request returns only that camera’s NVR credentials for adoption. Empty secret fields retain prior values; to remove source credentials, clear the source username or remove/recreate the camera.
+
+## Simple setup
+
+The setup endpoint matches a discovered Companion device, chooses a unique ID and available ONVIF port, detects the local LAN interface used to reach that tablet, and generates a random NVR password. Existing camera identity and tuning survive edits. The address override lives under Advanced. A separate admin-only connection-details endpoint supplies credentials on demand, never in polling responses or logs.

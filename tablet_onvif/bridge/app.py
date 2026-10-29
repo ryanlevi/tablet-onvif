@@ -16,6 +16,7 @@ from .discovery import Discovery
 from .ha import HomeAssistant
 from .media import MediaServer, Video
 from .onvif import Onvif
+from .setup import prepare_camera
 
 LOG = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class Bridge:
         self.errors = []
         self.tasks = []
         self.lock = asyncio.Lock()
+        self.setup_lock = asyncio.Lock()
         self.supervisor = bool(os.environ.get("SUPERVISOR_TOKEN"))
 
     async def changed(self):
@@ -235,6 +237,33 @@ class Bridge:
             await self.apply(Settings.parse(raw))
             return web.json_response({"saved": True})
 
+        async def setup_camera(request):
+            if request.content_type != "application/json" or request.headers.get("X-Tablet-ONVIF") != "1":
+                raise web.HTTPForbidden()
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid setup request")
+            async with self.setup_lock:
+                settings, camera = await prepare_camera(self.settings, self.ha, payload)
+                await self.apply(settings)
+            return web.json_response({"camera": camera.public()})
+
+        async def connection(request):
+            camera = next((c for c in self.settings.cameras if c.id == request.match_info["id"]), None)
+            if camera is None:
+                raise web.HTTPNotFound()
+            # Explicit authenticated request only; never included in ordinary config/status polling.
+            return web.json_response(
+                {
+                    "name": camera.name,
+                    "host": camera.advertise_host,
+                    "port": camera.onvif_port,
+                    "url": f"http://{camera.advertise_host}:{camera.onvif_port}/onvif/device_service",
+                    "username": camera.username,
+                    "password": camera.password,
+                }
+            )
+
         async def preview(request):
             video = next((v for v in self.videos if v.camera.id == request.match_info["id"]), None)
             if not video or not video.status()["video_available"]:
@@ -273,6 +302,8 @@ class Bridge:
         app.router.add_put("/api/config", save)
         app.router.add_get("/api/status", status)
         app.router.add_get("/api/tablets", tablets)
+        app.router.add_post("/api/setup", setup_camera)
+        app.router.add_get("/api/connection/{id}", connection)
         app.router.add_get("/api/preview/{id}", preview)
         app.router.add_post("/api/preview-session", preview_session)
         app.router.add_get("/api/source/{id}", live)
