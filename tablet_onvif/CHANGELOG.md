@@ -1,3 +1,8 @@
+# 0.2.4
+
+- Remove the promotional headline and introductory copy from the web UI.
+- Show Cameras directly below the app header and keep the footer to the version number.
+
 # 0.2.3
 
 - Automatically switch to a compatibility preview when the browser rejects the MJPEG live view.

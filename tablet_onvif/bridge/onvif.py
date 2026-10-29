@@ -243,7 +243,7 @@ class Onvif:
             for key, value in {
                 "Manufacturer": "Tablet ONVIF",
                 "Model": "Companion Camera",
-                "FirmwareVersion": "0.2.3",
+                "FirmwareVersion": "0.2.4",
                 "SerialNumber": self.identity,
                 "HardwareId": self.identity,
             }.items():
