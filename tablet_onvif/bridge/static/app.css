@@ -160,7 +160,8 @@ p {
   margin-bottom: 28px;
   color: var(--muted);
 }
-button {
+button,
+.button-link {
   background: var(--accent);
   color: #15352a;
   border: 1px solid var(--accent);
@@ -168,6 +169,11 @@ button {
   padding: 10px 15px;
   font: 600 14px system-ui;
   cursor: pointer;
+}
+.button-link {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
 }
 .secondary {
   background: transparent;
@@ -313,7 +319,8 @@ footer {
   .tablet h3 {
     font-size: 15px;
   }
-  .actions button {
+  .actions button,
+  .actions .button-link {
     flex: 1;
   }
   dialog {

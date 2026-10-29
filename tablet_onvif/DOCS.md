@@ -20,3 +20,9 @@ Open this app's **Configuration** tab, enable **Debug logging**, save, then rest
 Secrets are redacted, but logs contain LAN addresses and entity IDs, so review before posting them publicly. If Video ready appears but Live view fails, include the `browser-preview` and `encoder-relay` lines around the failure.
 
 If your browser or Home Assistant ingress rejects the live MJPEG viewer, it automatically switches to **Compatibility preview**, refreshing the encoder's decoded image once per second. This affects only the web preview; NVR video keeps its configured frame rate. The preview reports missing fresh frames and retries until you stop it.
+
+## Add a camera entity in Home Assistant
+
+Select **Add to Home Assistant** on a camera card to open the built-in ONVIF integration setup in a new tab. Choose your HA instance if prompted, then enter the bridge address, camera-specific ONVIF port and login shown under **Connect to NVR**. The link opens setup only; it does not send credentials or automatically create an integration. Alternatively, go to Settings → Devices & services → Add integration → ONVIF. This creates a separate ONVIF device on current HA, rather than adding an entity to the existing Companion App device. Actual HA ONVIF compatibility still needs deployment validation.
+
+For the complete setup sequence, see the [repository installation guide](https://github.com/ryanlevi/tablet-onvif#installation-guide).

@@ -203,13 +203,18 @@ function createView(camera) {
     actions = el("div", undefined, "actions"),
     live = el("button", "Live view", "secondary"),
     connect = el("button", "Connect to NVR"),
+    addToHa = el("a", "Add to Home Assistant", "button-link secondary"),
     preview = el("div", undefined, "camera-preview");
   settings.setAttribute("aria-label", `Settings for ${camera.name}`);
   settings.onclick = () =>
     setup({ stream_entity: camera.stream_entity, name: camera.name }, camera);
   connect.onclick = () => connection(camera);
   head.append(title, settings);
-  actions.append(live, connect);
+  addToHa.href =
+    "https://my.home-assistant.io/redirect/config_flow_start/?domain=onvif";
+  addToHa.target = "_blank";
+  addToHa.rel = "noopener noreferrer";
+  actions.append(live, connect, addToHa);
   body.append(head, info, error, actions);
   card.append(body, preview);
   const view = {

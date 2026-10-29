@@ -1,5 +1,5 @@
 name: Tablet ONVIF
-version: "0.2.4"
+version: "0.2.5"
 slug: tablet_onvif
 description: Companion App tablet cameras and motion events for ONVIF NVRs
 arch:

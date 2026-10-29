@@ -1,3 +1,8 @@
+# 0.2.5
+
+- Add an Add to Home Assistant link on each camera card to open the built-in ONVIF integration setup without including credentials in the URL.
+- Document the full iPad sensor, Home Assistant app, NVR and optional Home Assistant camera setup process.
+
 # 0.2.4
 
 - Remove the promotional headline and introductory copy from the web UI.

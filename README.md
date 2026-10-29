@@ -2,7 +2,7 @@
 
 Turn a wall-mounted tablet running the Home Assistant Companion App into an authenticated ONVIF camera, including motion events from its existing Camera Motion sensor.
 
-**Developer preview — 0.2.4.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
+**Developer preview — 0.2.5.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
 
 ## What it does
 
@@ -28,24 +28,181 @@ flowchart LR
   O --> E
 ```
 
-## Install on Home Assistant OS
+## Installation guide
 
-For local development, copy the entire `tablet_onvif` directory into the HA local apps/add-ons directory (`/addons/tablet_onvif`, accessible through a suitable Samba/SSH app). In the Apps store, reload/check for updates, find the local Tablet ONVIF app, and install it. Builds download Python, FFmpeg and MediaMTX dependencies.
+Follow these steps in order. Start with one iPad and verify video and motion in your recorder before adding more tablets.
 
-Start the app and select **Open Web UI**:
+1. [Enable the iPad camera sensors](#1-enable-the-ipad-camera-sensors).
+2. [Install and configure the Home Assistant app](#2-install-and-configure-the-home-assistant-app).
+3. [Connect your NVR](#3-connect-your-nvr).
+4. Optionally, [add a camera entity in Home Assistant](#optional-add-a-camera-entity-in-home-assistant).
 
-1. Select **Set up** beside your tablet.
-2. Keep its suggested name, or rename it. If the tablet stream is password protected, enter that username and password.
-3. Select **Enable camera**. The bridge detects its LAN address, selects a free ONVIF port, and reuses the tablet stream login for the NVR. If the stream has no login, it generates NVR credentials.
-4. Open **Live view** to check the picture. Select **Connect to NVR** for the camera address and login. The dialog includes a UniFi Protect guide.
+### Before you start
 
-The main page contains your cameras and discovered tablets. Network controls are under **Advanced settings**. Camera settings offer a bridge-address override if routing selects the wrong interface. Existing camera IDs, credentials, ports and video tuning are preserved when changing the name or source login.
+You need:
 
-The source preview reads MJPEG directly from the iPad. NVR video still depends on the H.264 encoder and ONVIF bridge, so preview success alone does not establish Protect compatibility. The settings dialog lets you remove a camera or change its source credentials. Normal setup does not expose entity IDs, codec choices, stream dimensions or manually constructed URLs.
+- An iPad running the **Home Assistant Companion App**, connected to the Home Assistant server that will run Tablet ONVIF. Opening HA in Safari alone does not provide the Companion App camera sensors.
+- A Companion App version that offers **Camera Stream** and **Camera Motion**. If those sensors are missing, update the Companion App and check device support before continuing.
+- **Home Assistant OS**, with administrator access to install apps. Supported host architectures are **amd64** and **aarch64**. If you run Home Assistant Container without the app store, use [Standalone Docker on Linux](#standalone-docker-on-linux) instead.
+- A local network connection from the HA host to the iPad, and from the NVR to the HA host. The bridge runs on the **HA server**, not on the iPad or NVR.
+- An NVR that accepts third-party **ONVIF cameras with H.264 video**. Motion recording also needs support for this bridge's ONVIF PullPoint motion events; raw RTSP input alone does not carry those events.
+- Internet access on the HA host for the initial image build. Python, FFmpeg and MediaMTX are included; you do not install them separately.
 
-For distribution, publish this Git repository and add its actual GitHub URL to the HA Apps store repositories. No remote repository has been created by this source package.
+No MQTT broker, Frigate, go2rtc installation, Proxmox server or extra camera app is required.
 
-**Supported app architectures:** amd64 and aarch64. Runtime ports default to administration/ingress TCP 8099, RTSP TCP 8556, UDP 3702 discovery, and one configurable ONVIF TCP port per tablet (first suggested port 8101). Do not overlap ports used by Frigate or another media server.
+### 1. Enable the iPad camera sensors
+
+On the **iPad**:
+
+1. Open the Home Assistant Companion App and select your HA server.
+2. Go to **Settings → Companion app → Sensors**. If multiple servers are configured, enable the sensors for the server running this bridge.
+3. Enable **Camera Motion** and grant camera permission when prompted.
+4. Enable **Camera Stream**. In its settings, optionally set a **Username** and **Password**. Keep these for step 2. The default stream port is **8090**.
+5. Leave the Companion App open in the foreground. For wall use, keep it powered and configure kiosk mode so the app remains visible. Locking the iPad or switching apps can interrupt the camera.
+
+Both sensors use the front camera. The stream reports `idle` without a viewer and `streaming` with viewers; `idle` is not an error. Motion sensitivity and clear delay are configured in **Camera Motion** settings. See the [official Companion sensor documentation](https://companion.home-assistant.io/docs/core/sensors/#camera-stream-sensor).
+
+On **Home Assistant**:
+
+1. Open **Settings → Devices & services → Devices** and select the iPad's Companion App device.
+2. Confirm that **Camera Stream** and **Camera Motion** exist and are enabled. Their entity IDs will resemble:
+
+   ```text
+   sensor.garage_ipad_camera_stream
+   binary_sensor.garage_ipad_camera_motion
+   ```
+
+   These are examples; your names may differ. The bridge discovers the actual entities, including renamed ones.
+
+3. Open **Camera Stream** and check its attributes for a **Stream URL**. The motion entity should report `on` or `off`, rather than `unavailable`.
+4. If the entities have not appeared yet, return to the iPad and refresh the Companion App's sensors/dashboard, then check again.
+
+**Checkpoint:** both entities are present on the same iPad device, and Camera Stream has a Stream URL. You do not need to create a separate MJPEG camera integration first. `sensor.…_camera_stream` is a status sensor, not itself a playable `camera.*` entity.
+
+### 2. Install and configure the Home Assistant app
+
+#### Add this repository and install
+
+1. In Home Assistant, open **Settings → Apps → Install app**. Older HA versions call this **Settings → Add-ons → Add-on Store**.
+2. Open the **⋮** menu and select **Repositories**.
+3. Add this repository URL:
+
+   ```text
+   https://github.com/ryanlevi/tablet-onvif
+   ```
+
+4. Close the repository dialog, refresh the store if needed, and find **Tablet ONVIF** under **Tablet ONVIF Apps**.
+5. Open it and select **Install**. The app builds from source; wait for the installation to finish. Check Supervisor logs if the build fails.
+6. Enable **Start on boot**. Optionally enable **Show in sidebar**.
+7. Select **Start**, then **Open Web UI**. No HA token or separate web login is required through Home Assistant ingress.
+
+See HA's [third-party app repository instructions](https://www.home-assistant.io/common-tasks/os/#installing-a-third-party-app-repository) if the repository does not appear. This is an app-store repository, not a HACS integration.
+
+#### Enable your tablet in the bridge
+
+1. Wait for **Home Assistant connected** at the top of the Web UI.
+2. Under **Add a tablet**, find the iPad and select **Set up**. Use **Refresh** if it has just been enabled.
+3. Keep its suggested camera name, or choose a name your NVR will recognize.
+4. If you configured a login on the iPad, select **The tablet's stream uses a password** and enter that exact username and password. These are camera-stream credentials, not your Home Assistant account login.
+5. Select **Enable camera**. The bridge detects its LAN address, chooses an available ONVIF port and starts the video encoder.
+6. Wait for **Video ready**, then select **Live view**. You should see the iPad camera. If the browser cannot display MJPEG, it switches to **Compatibility preview**, which updates once per second. This fallback changes only the web preview, not the NVR stream's configured frame rate.
+7. Move in front of the iPad and check that **Motion clear** changes to **Motion detected**, then clears after the tablet's configured delay.
+
+**Checkpoint:** the bridge shows video ready, a current picture, and motion changes. Browser preview alone does not prove NVR interoperability; complete step 3.
+
+#### Find the NVR connection details
+
+On the camera card, select **Connect to NVR**:
+
+- **Camera address:** the bridge/HA host's LAN address. Use this instead of the iPad IP or HA ingress URL.
+- **Username / Password:** the camera's NVR login. Select **Show password** or **Copy password** when needed.
+- Under **Manual adoption:** the ONVIF service URL and camera-specific ONVIF port.
+
+For a newly configured camera, a supplied iPad stream login is also used for NVR access. If the iPad stream has no login, the bridge generates an authenticated NVR login. Existing saved NVR logins remain unchanged, so always use the values displayed here. Changes to a shared tablet/bridge login also require updating the saved login in your NVR.
+
+You normally do not need **Advanced settings**. If the detected address is unreachable from the NVR, open the camera's settings (**⋯**) and override the bridge address with the correct HA host LAN IPv4 address.
+
+### 3. Connect your NVR
+
+#### Any ONVIF-compatible recorder
+
+Menu names differ by NVR; the required connection details are the same:
+
+1. Open your NVR's **Add camera**, **Add device** or equivalent screen.
+2. Choose **ONVIF**. If discovery lists the camera name you set above, select it.
+3. Enter the **Username** and **Password** from **Connect to NVR**.
+4. If discovery does not find it, use manual ONVIF setup. Enter the displayed **Camera address** and **ONVIF port**. If the recorder asks for a complete service URL, paste the **ONVIF service URL** from **Manual adoption**. Do not substitute the HA web port or iPad stream port.
+5. Select **TCP** for RTSP transport if asked. The bridge provides H.264 main and sub streams; the recorder retrieves their addresses through ONVIF.
+6. Save/add the camera and open its live view. Configure the NVR's recording schedule, storage and retention as you would for any other camera.
+7. If you want motion-triggered recording, enable the NVR's **camera/ONVIF motion events** and corresponding recording rule. Walk in front of the iPad, wait for motion to clear, and confirm that the NVR receives the event and records a playable clip.
+
+ONVIF clients vary. This project remains a developer preview: adoption, recording and motion behavior must be checked on your actual recorder. It does not provide audio, PTZ or person/vehicle/animal AI classifications. A recorder's own image-based motion detector is separate from the camera motion events sent by this bridge.
+
+#### UniFi Protect / UNVR
+
+1. Open **UniFi Protect → Settings → System**.
+2. Enable **Discover Third-Party Cameras**.
+3. Open **UniFi Devices** and find the tablet camera, then select **Click to Adopt**.
+4. Enter the NVR username and password shown in **Connect to NVR**. Neither a UniFi account password nor a Home Assistant account password is used here.
+5. After adoption, open the live view. Protect uses the bridge's main/sub streams as HQ/LQ.
+6. Configure recording and verify a real motion event and recorded clip. This bridge's actual Protect adoption and motion timeline behavior are still awaiting validation.
+
+For Protect's supported setup process, see [Ubiquiti's third-party camera guide](https://help.ui.com/hc/en-us/articles/26301104828439-Third-Party-Cameras-in-UniFi-Protect). If the camera is not discovered, check the network requirements below; a generic NVR's manual service-URL field should not be assumed to exist in Protect.
+
+#### Network requirements and discovery
+
+| Connection                             | Default port                                                    | Purpose                                                                                                |
+| -------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| HA host → iPad                         | TCP 8090                                                        | Read the Companion App stream; use the actual port configured on the iPad                              |
+| NVR → HA host                          | TCP 8101 for the first camera; later ports chosen automatically | ONVIF login, media information, snapshots and motion subscriptions; use the port shown for each camera |
+| NVR → HA host                          | TCP 8556                                                        | Authenticated RTSP video; configurable in Advanced settings                                            |
+| NVR ↔ HA host on the discovery subnet | UDP 3702                                                        | ONVIF WS-Discovery multicast                                                                           |
+| HA Supervisor ingress → app            | TCP 8099                                                        | Web administration; not the camera endpoint to enter into an NVR                                       |
+
+Discovery generally stays within one subnet. Across VLANs, allow the routed ONVIF and RTSP connections and use manual setup where the NVR supports it; multicast discovery needs separate network support. A working HA web page does not prove these camera ports are reachable.
+
+Use DHCP reservations for the iPad and HA host to keep their addresses stable. Keep the HA/NVR clocks synchronized for time-sensitive ONVIF authentication. Check port conflicts if you already run Frigate or another media server. Keep the camera endpoints on trusted networks; public port forwarding is not required.
+
+### Optional: add a camera entity in Home Assistant
+
+You can use the bridge for both an NVR and Home Assistant:
+
+1. On the camera card, select **Add to Home Assistant**. This opens the built-in **ONVIF** integration setup in a new tab through My Home Assistant. Select/check your HA instance URL if prompted.
+2. Enter the bridge **Camera address**, **ONVIF port**, **Username** and **Password** from **Connect to NVR**. The button opens setup; it does not transfer credentials or create the integration automatically.
+3. Complete the setup and check the new camera entity under **Settings → Devices & services → ONVIF**. Use it in your dashboard like another HA camera.
+4. If the link is unavailable, open **Settings → Devices & services → Add integration → ONVIF** manually and enter the same details.
+
+The [HA ONVIF integration](https://www.home-assistant.io/integrations/onvif/) supports H.264 profiles. Actual compatibility with this bridge still needs deployment validation. On current HA, this is a separate ONVIF device; it is not added under the iPad's existing Companion App device. See [HA's device ownership model](https://contributors.home-assistant.io/blog/2026/07/21/device-registry-single-config-entry/).
+
+### Updating and keeping your configuration
+
+**Repository installation:** refresh/check for updates in the app store, open Tablet ONVIF and select **Update** when a new version appears. Restart it if necessary and refresh the Web UI. Camera identities and saved settings are stored in persistent app data; keep that data when updating and include it in your HA backups.
+
+**Local source installation:** if you copied the `tablet_onvif` directory into the local apps folder, update that copy first. On installations using the legacy `/addons` mount, that directory is `/addons/tablet_onvif`. Then reload the store and update the installed local app:
+
+```sh
+ha store reload
+ha addons update local_tablet_onvif
+```
+
+The local slug is specific to a local installation; repository installations have a repository-specific slug. A rebuild alone may leave the installed version metadata unchanged. Compare the app's installed version with `tablet_onvif/config.yaml`, not just its changelog.
+
+Avoid uninstalling to perform a routine update. Removing app data loses the persistent installation identity and can require adopting the camera again. Keep existing NVR credentials when a camera has already been adopted.
+
+### If setup stops working
+
+| Symptom                                           | What to check                                                                                                                            |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| iPad missing from Add a tablet                    | Correct HA server selected on the iPad; both sensors enabled and registered on its device; press Refresh                                 |
+| Camera Stream is unavailable or has no Stream URL | Companion App open in the foreground, camera permission granted, Camera Stream enabled                                                   |
+| Source credentials rejected                       | Use the iPad's Camera Stream username/password, not HA or NVR account credentials                                                        |
+| Waiting for video / no fresh preview frame        | HA-to-iPad connectivity and port, tablet foreground state, encoder logs and possible port conflicts                                      |
+| Compatibility preview appears                     | Automatic web-preview fallback; confirm it displays changing images, then test NVR video separately                                      |
+| NVR cannot find the camera                        | Third-party/ONVIF discovery enabled, same discovery subnet, reachable advertised address, ONVIF/RTSP firewall rules                      |
+| NVR rejects the login                             | Re-copy the displayed NVR login, use the camera-specific ONVIF port, check HA/NVR clocks                                                 |
+| NVR video works but motion does not               | Original Camera Motion sensor changes, bridge motion is available, and NVR accepts camera ONVIF events and has an enabled recording rule |
+
+For further diagnosis, follow [Troubleshooting with debug logs](#troubleshooting-with-debug-logs). Include the installed version, the failed step and relevant redacted logs in an issue.
 
 ## Standalone Docker on Linux
 
@@ -78,16 +235,14 @@ Standalone Docker can set `DEBUG_LOGGING=true` in `.env` and recreate its contai
 
 Passwords, HA tokens, authorization headers and URL credentials/paths are redacted. Logs still include LAN endpoint addresses, camera IDs and entity IDs; review them before sharing publicly. SOAP bodies, options and settings are never dumped. Child output is bounded and truncated records are omitted.
 
-Local source update: after pulling changes, run `ha store reload` followed by `ha addons update local_tablet_onvif`. Rebuild alone does not update the installed version metadata.
-
 ## How motion behaves
 
 The configured binary sensor is authoritative:
 
-| HA state | ONVIF motion state | Diagnostics |
-|---|---|---|
-| `on` | Active | Motion available |
-| `off` | Clear | Motion available |
+| HA state                                              | ONVIF motion state      | Diagnostics        |
+| ----------------------------------------------------- | ----------------------- | ------------------ |
+| `on`                                                  | Active                  | Motion available   |
+| `off`                                                 | Clear                   | Motion available   |
 | `unknown`, `unavailable`, missing, or HA disconnected | Clear any active motion | Motion unavailable |
 
 Repeated identical states do not produce repeated events. Each NVR subscriber gets its own bounded event queue and an initial current-state notification. PullPoint subscriptions support polling, renewal, expiration, synchronization and unsubscribe. There is no extra occupancy timer: the Companion App's configured clear delay controls motion duration.

@@ -1,3 +1,3 @@
 """Tablet ONVIF: Companion App video and motion for ONVIF clients."""
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
