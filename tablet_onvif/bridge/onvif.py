@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -14,6 +15,8 @@ from defusedxml.ElementTree import fromstring
 
 from .auth import Authentication, utc
 from .events import Events
+
+LOG = logging.getLogger(__name__)
 
 NS = {
     "s": "http://www.w3.org/2003/05/soap-envelope",
@@ -103,11 +106,14 @@ class Onvif:
                 raise Fault("SOAP body must contain one operation")
             op = body[0]
             name = op.tag.rsplit("}", 1)[-1]
+            LOG.debug("Camera %s ONVIF request: %s", self.camera.id, name)
             if name != "GetSystemDateAndTime" and not (self.auth.http(request) or self.auth.wsse(root)):
+                LOG.debug("Camera %s ONVIF authentication required/rejected for %s", self.camera.id, name)
                 return self.response(root, None, Fault("Authentication required", "ter:NotAuthorized"), 401)
             response = await self.dispatch(name, op, request.path)
             return self.response(root, response)
         except Fault as exc:
+            LOG.debug("Camera %s ONVIF fault: %s", self.camera.id, exc.code)
             return self.response(root, None, exc, 400)
         except (ValueError, KeyError):
             return self.response(root, None, Fault("Invalid request or expired subscription"), 400)
@@ -237,7 +243,7 @@ class Onvif:
             for key, value in {
                 "Manufacturer": "Tablet ONVIF",
                 "Model": "Companion Camera",
-                "FirmwareVersion": "0.2.0",
+                "FirmwareVersion": "0.2.1",
                 "SerialNumber": self.identity,
                 "HardwareId": self.identity,
             }.items():
@@ -396,6 +402,7 @@ class Onvif:
                     raise Fault("Only motion topics are supported")
             ttl = duration(op.findtext("tev:InitialTerminationTime", namespaces=NS))
             key = self.events.create(ttl)
+            LOG.debug("Camera %s motion subscription created; count=%d", c.id, len(self.events.subscriptions))
             r = response("tev")
             ref = node(r, "tev:SubscriptionReference")
             node(ref, "wsa:Address", self.base + "/onvif/subscriptions/" + key)

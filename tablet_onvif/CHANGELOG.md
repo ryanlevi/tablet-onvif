@@ -1,3 +1,11 @@
+# 0.2.1
+
+- Add an opt-in Debug logging switch in the Home Assistant app Configuration tab (off by default).
+- Log HA connection stages, registry loading, motion transitions, preview/source HTTP responses and stream delivery, encoder startup/exit, and ONVIF authentication/subscriptions.
+- Capture redacted FFmpeg and MediaMTX process diagnostics instead of discarding their output.
+- Distinguish browser-preview, source-check and encoder-relay connections to investigate live-view failures when encoded video is ready.
+- Redact passwords, API tokens, authorization headers and URL credentials/paths; bound child log records and output volume.
+
 # 0.2.0
 
 - Simplify setup to choosing a tablet, naming it and optionally entering its stream credentials.

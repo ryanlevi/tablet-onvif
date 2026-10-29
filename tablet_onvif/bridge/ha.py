@@ -8,6 +8,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
 
+from .diagnostics import endpoint
+
 LOG = logging.getLogger(__name__)
 
 
@@ -30,17 +32,22 @@ class HomeAssistant:
     async def run(self):
         delay = 1
         while True:
+            phase = "connect"
+            LOG.debug("Home Assistant WebSocket connecting: %s", endpoint(self.websocket_url))
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_connect=10)) as session:
                     async with session.ws_connect(
                         self.websocket_url, heartbeat=25, max_msg_size=16 * 1024 * 1024
                     ) as ws:
+                        phase = "authentication"
                         hello = await ws.receive_json(timeout=10)
                         if hello.get("type") != "auth_required":
                             raise ValueError("Unexpected Home Assistant handshake")
                         await ws.send_json({"type": "auth", "access_token": self.token})
                         if (await ws.receive_json(timeout=10)).get("type") != "auth_ok":
                             raise ValueError("Home Assistant authentication rejected")
+                        LOG.debug("Home Assistant authentication accepted; loading registries and states")
+                        phase = "subscriptions"
                         # Subscribe first, then hydrate; don't miss changes between discovery and subscription.
                         requests = {
                             1: {"type": "subscribe_events", "event_type": "state_changed"},
@@ -64,6 +71,7 @@ class HomeAssistant:
                             if data.get("type") == "result":
                                 key = data.get("id")
                                 if not data.get("success"):
+                                    LOG.debug("Home Assistant request rejected: operation_id=%s", key)
                                     if key in (1, 2):
                                         raise ValueError("HA state subscription failed")
                                     self.error = (
@@ -71,6 +79,10 @@ class HomeAssistant:
                                     )
                                     continue
                                 result = data.get("result", [])
+                                if key in (2, 3, 4):
+                                    LOG.debug(
+                                        "Home Assistant data loaded: operation_id=%s entries=%d", key, len(result)
+                                    )
                                 if key == 2:
                                     self.states = {s["entity_id"]: s for s in result}
                                 elif key == 3:
@@ -95,6 +107,9 @@ class HomeAssistant:
             except Exception as exc:
                 # Never log exception text: HTTP errors may embed tokens/URLs.
                 LOG.warning("Home Assistant connection interrupted (%s); retrying", type(exc).__name__)
+                LOG.debug(
+                    "Home Assistant failure: phase=%s exception=%s retry_seconds=%d", phase, type(exc).__name__, delay
+                )
                 self.error = "Home Assistant connection unavailable; reconnecting"
             finally:
                 self.connected = False

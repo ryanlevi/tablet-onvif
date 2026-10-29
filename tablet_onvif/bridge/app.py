@@ -13,6 +13,7 @@ from aiohttp import web
 
 from .config import Settings, Store
 from .discovery import Discovery
+from .diagnostics import REDACTOR, configure_logging, debug_option, register_camera
 from .ha import HomeAssistant
 from .media import MediaServer, Video
 from .onvif import Onvif
@@ -25,6 +26,9 @@ class Bridge:
     def __init__(self, store):
         self.store = store
         self.settings = store.load()
+        REDACTOR.add(store.admin_token)
+        for camera in self.settings.cameras:
+            register_camera(camera)
         self.ha = None
         self.ha_task = None
         self.media = None
@@ -41,7 +45,13 @@ class Bridge:
         if not self.ha:
             return
         for camera in self.cameras:
-            camera.events.update(self.ha.state(camera.camera.motion_entity))
+            state = self.ha.state(camera.camera.motion_entity)
+            previous = (camera.events.motion, camera.events.available)
+            camera.events.update(state)
+            if previous != (camera.events.motion, camera.events.available):
+                LOG.debug(
+                    "Camera %s motion=%s available=%s", camera.camera.id, camera.events.motion, camera.events.available
+                )
 
     async def start(self):
         token = os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN", "")
@@ -52,6 +62,7 @@ class Bridge:
                 "Home Assistant token missing. Set HA_TOKEN for Docker or enable homeassistant_api in the HA app."
             )
         enabled = [c for c in self.settings.cameras if c.enabled]
+        LOG.debug("Starting bridge: cameras=%d rtsp_port=%d", len(enabled), self.settings.rtsp_port)
         if not enabled:
             return
         self.media = MediaServer(self.store.directory, self.settings.rtsp_port)
@@ -62,11 +73,13 @@ class Bridge:
             self.cameras.append(onvif)
             self.videos.append(video)
             await onvif.start()
+            LOG.debug("Camera %s ONVIF listener ready on TCP %d", c.id, c.onvif_port)
             self.tasks.append(asyncio.create_task(self.video_worker(video), name="video-" + c.id))
         self.tasks.append(asyncio.create_task(self.watch_media(enabled), name="media-watchdog"))
         await self.changed()
         try:
             self.discovery = await Discovery.start(self.cameras, self.settings.discovery_interface)
+            LOG.debug("WS-Discovery ready on UDP 3702 interface=%s", self.settings.discovery_interface)
         except OSError:
             self.errors.append(
                 "WS-Discovery could not bind UDP 3702; ONVIF manual adoption is available. Check interface and competing services."
@@ -78,7 +91,8 @@ class Bridge:
                 await video.run()
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                LOG.debug("Camera %s video worker failed: %s", video.camera.id, type(exc).__name__)
                 video.error = "Video runtime interrupted; retrying. Check tablet credentials and encoder availability."
                 video.jpeg = b""
                 LOG.warning("Video worker interrupted; retrying without logging source credentials")
@@ -119,6 +133,8 @@ class Bridge:
             old = self.settings
             await self.stop()
             self.settings = settings
+            for camera in settings.cameras:
+                register_camera(camera)
             try:
                 await self.start()
                 self.store.save(settings)
@@ -176,6 +192,7 @@ class Bridge:
         async def access(request, handler):
             if self.supervisor:
                 if request.remote != "172.30.32.2":
+                    LOG.debug("Ingress request rejected: peer=%s path=%s", request.remote, request.path)
                     raise web.HTTPForbidden(text="Use Home Assistant ingress")
             elif request.path.startswith("/api/"):
                 token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -183,6 +200,7 @@ class Bridge:
                     request.cookies.get("tablet_onvif_preview", "")
                 )
                 if not valid_preview and not hmac.compare_digest(token.encode(), self.store.admin_token.encode()):
+                    LOG.debug("Admin request unauthorized: path=%s", request.path)
                     raise web.HTTPUnauthorized()
             try:
                 response = await handler(request)
@@ -287,6 +305,7 @@ class Bridge:
             return response
 
         async def live(request):
+            LOG.debug("Preview request accepted: path=%s peer=%s", request.path, request.remote)
             camera = next((c for c in self.settings.cameras if c.id == request.match_info["id"] and c.enabled), None)
             if camera is None or self.ha is None:
                 return web.json_response({"error": "Camera not configured or Home Assistant is starting."}, status=404)
@@ -313,8 +332,8 @@ class Bridge:
 
 async def main():
     directory = Path(os.environ.get("DATA_DIR", "/data"))
+    configure_logging(debug_option())
     bridge = Bridge(Store(directory))
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     runner = web.AppRunner(bridge.admin_app(), access_log=None)
     await runner.setup()
     await web.TCPSite(
@@ -323,7 +342,8 @@ async def main():
     try:
         try:
             await bridge.start()
-        except Exception:
+        except Exception as exc:
+            LOG.debug("Bridge startup failure: %s", type(exc).__name__)
             bridge.errors.append(
                 "Bridge runtime could not start; inspect camera settings and port conflicts, then save settings to retry."
             )

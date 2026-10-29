@@ -12,3 +12,9 @@ Motion is derived directly from the selected binary sensor; no MQTT or extra aut
 Networking uses the HA host LAN: administration 8099 (Supervisor ingress only), default RTSP 8556, UDP discovery 3702, and each camera's ONVIF port. Avoid port conflicts with existing services. Discovery stays within a subnet; manual adoption may be needed across VLANs.
 
 Keep all ports local. Settings and credentials persist in app data. Back up app data to preserve camera UUIDs. Saving settings restarts the bridge. Stop/uninstall the app to roll back; this does not change your existing HA entities, automations, dashboards or Frigate hardware configuration.
+
+## Debug logs
+
+Open this app's **Configuration** tab, enable **Debug logging**, save, then restart it. Open Live view and reproduce the error once. The **Logs** tab will include connection stages, separate preview/encoder source requests, HTTP status, bytes delivered, sanitized encoder/server output and ONVIF requests. Turn Debug logging off and restart after diagnosis.
+
+Secrets are redacted, but logs contain LAN addresses and entity IDs, so review before posting them publicly. If Video ready appears but Live view fails, include the `browser-preview` and `encoder-relay` lines around the failure.

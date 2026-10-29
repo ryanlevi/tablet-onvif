@@ -2,7 +2,7 @@
 
 Turn a wall-mounted tablet running the Home Assistant Companion App into an authenticated ONVIF camera, including motion events from its existing Camera Motion sensor.
 
-**Developer preview — 0.2.0.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
+**Developer preview — 0.2.1.** This repository contains a first implementation and automated protocol checks. Live adoption by UniFi Protect, a full container build, and sustained real-iPad video have not yet been validated. It is not ONVIF certified. Do not treat it as a proven surveillance appliance.
 
 ## What it does
 
@@ -66,6 +66,20 @@ Read `data/admin-token` locally on that host and open `http://localhost:8099`. P
 
 `ADMIN_HOST` can be changed deliberately for a private management network, but the UI then needs TLS via a trusted reverse proxy. NVR-facing ONVIF and RTSP ports are authenticated independently of the admin UI.
 
+## Troubleshooting with debug logs
+
+In Home Assistant, open **Tablet ONVIF → Configuration**, enable **Debug logging**, save and restart the app. Reproduce the problem once, then open its **Logs** tab. Disable debug logging and restart after troubleshooting.
+
+```yaml
+debug_logging: true
+```
+
+Standalone Docker can set `DEBUG_LOGGING=true` in `.env` and recreate its container. The Supervisor `/data/options.json` option takes precedence when present. Debug logs include HA connection stages, source HTTP status, stream delivery, FFmpeg/MediaMTX output and ONVIF operations. They distinguish `source-check`, `encoder-relay` and `browser-preview`. If the UI reports video ready but live preview fails, share logs from immediately before clicking Live view through the failure.
+
+Passwords, HA tokens, authorization headers and URL credentials/paths are redacted. Logs still include LAN endpoint addresses, camera IDs and entity IDs; review them before sharing publicly. SOAP bodies, options and settings are never dumped. Child output is bounded and truncated records are omitted.
+
+Local source update: after pulling changes, run `ha store reload` followed by `ha addons update local_tablet_onvif`. Rebuild alone does not update the installed version metadata.
+
 ## How motion behaves
 
 The configured binary sensor is authoritative:
@@ -106,7 +120,7 @@ Read [architecture](docs/architecture.md), [security](SECURITY.md), and the [acc
 
 Implemented: registry discovery, direct HA events, two H.264 profiles, snapshots, authenticated protocol services, persistent identity, ingress UI, standalone Docker packaging, reconnect handling, bounded event state and automated checks.
 
-Pending: actual UNVR adoption and motion timeline validation, complete Docker image execution, long-duration iPad testing, multiple-camera identity validation, optional HA diagnostic entities, and release image publication. UI settings currently restart the entire bridge. Debugging intentionally uses coarse source errors rather than echoing FFmpeg lines containing credentials.
+Pending: actual UNVR adoption and motion timeline validation, complete Docker image execution, long-duration iPad testing, multiple-camera identity validation, optional HA diagnostic entities, and release image publication. UI settings currently restart the entire bridge. Default UI errors stay concise; opt-in debug logging includes sanitized FFmpeg and RTSP server output.
 
 ## References
 

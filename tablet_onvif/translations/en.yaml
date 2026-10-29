@@ -1,0 +1,7 @@
+configuration:
+  debug_logging:
+    name: Debug logging
+    description: >-
+      Log connection, live-preview, encoder and ONVIF diagnostics. Passwords,
+      tokens and URL credentials are redacted. Save and restart the app after
+      changing this option, then reproduce the problem and open the Logs tab.

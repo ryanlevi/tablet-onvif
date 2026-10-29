@@ -1,5 +1,5 @@
 name: Tablet ONVIF
-version: "0.2.0"
+version: "0.2.1"
 slug: tablet_onvif
 description: Companion App tablet cameras and motion events for ONVIF NVRs
 arch:
@@ -15,5 +15,7 @@ ingress_port: 8099
 panel_icon: mdi:tablet-dashboard
 panel_title: Tablet ONVIF
 panel_admin: true
-options: {}
-schema: {}
+options:
+  debug_logging: false
+schema:
+  debug_logging: bool

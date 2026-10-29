@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import secrets
 
 from .config import Store, validate_source
+from .diagnostics import REDACTOR, drain_output, finish_output, register_camera, endpoint
+
+LOG = logging.getLogger(__name__)
 
 
 class MediaServer:
     def __init__(self, directory, port):
         self.directory, self.port = directory, port
         self.process = None
+        self.output_task = None
 
     async def start(self, cameras):
         users = [
@@ -22,6 +27,7 @@ class MediaServer:
             }
         ]
         for c in cameras:
+            register_camera(c)
             if c.enabled:
                 users.append(
                     {
@@ -34,7 +40,7 @@ class MediaServer:
                     }
                 )
         cfg = {
-            "logLevel": "warn",
+            "logLevel": "debug" if LOG.isEnabledFor(logging.DEBUG) else "warn",
             "logDestinations": ["stdout"],
             "api": False,
             "metrics": False,
@@ -56,16 +62,20 @@ class MediaServer:
         self.process = await asyncio.create_subprocess_exec(
             "mediamtx",
             str(path),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
             cwd=self.directory,
         )
+        self.output_task = asyncio.create_task(drain_output(getattr(self.process, "stdout", None), LOG, "MediaMTX"))
+        LOG.debug("MediaMTX spawned: port=%d camera_count=%d", self.port, len(cameras))
         await asyncio.sleep(0.3)
         if self.process.returncode is not None:
             raise RuntimeError("RTSP server failed to start; check port conflicts and MediaMTX version")
 
     async def stop(self):
         await terminate(self.process)
+        await finish_output(self.output_task)
+        self.output_task = None
         self.process = None
 
     @property
@@ -89,6 +99,7 @@ async def terminate(process):
 class Video:
     def __init__(self, camera, ha, rtsp_port, directory):
         self.camera, self.ha, self.port, self.directory = camera, ha, rtsp_port, directory
+        register_camera(camera)
         self.task = None
         self.error = "Waiting for source"
         self.active_url = ""
@@ -97,6 +108,9 @@ class Video:
         self.process = None
         self.proxy_port = None
         self.proxy_key = secrets.token_urlsafe(32)
+        REDACTOR.add(self.proxy_key)
+        self.output_task = None
+        self.wait_reason = None
         self.jpeg = b""
         self.session = None
 
@@ -133,6 +147,12 @@ class Video:
                 {"error": "The tablet Stream URL is invalid. Check the source URL override."}, status=503
             )
         if not source:
+            LOG.debug(
+                "Camera %s source unavailable: sensor=%s state=%s",
+                self.camera.id,
+                self.camera.stream_entity,
+                self.ha.state(self.camera.stream_entity),
+            )
             return web.json_response(
                 {
                     "error": "No active tablet stream. Enable Camera Stream and keep the Companion App open in kiosk mode."
@@ -145,6 +165,21 @@ class Video:
             else None
         )
         response = None
+        kind = (
+            "source-check"
+            if check_only
+            else "browser-preview"
+            if request.path.startswith("/api/live/")
+            else "encoder-relay"
+        )
+        total = 0
+        LOG.debug(
+            "Camera %s %s: endpoint=%s source_auth=%s",
+            self.camera.id,
+            kind,
+            endpoint(source),
+            bool(auth),
+        )
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
@@ -153,6 +188,19 @@ class Video:
                     allow_redirects=False,
                     timeout=aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=20),
                 ) as upstream:
+                    LOG.debug(
+                        "Camera %s %s HTTP=%d content_type=%s",
+                        self.camera.id,
+                        kind,
+                        upstream.status,
+                        upstream.content_type,
+                    )
+                    LOG.debug(
+                        "Camera %s %s multipart_boundary_present=%s",
+                        self.camera.id,
+                        kind,
+                        "boundary=" in upstream.headers.get("Content-Type", "").lower(),
+                    )
                     if upstream.status != 200:
                         if upstream.status in (401, 403):
                             error = "The iPad rejected its stream credentials. Check the source username and password, not the NVR credentials."
@@ -183,10 +231,25 @@ class Video:
                         }
                     )
                     await response.prepare(request)
+                    total = 0
                     async for chunk in upstream.content.iter_chunked(65536):
                         await response.write(chunk)
+                        total += len(chunk)
+                        if total == len(chunk):
+                            LOG.debug(
+                                "Camera %s %s first bytes delivered: bytes=%d starts_with_boundary=%s jpeg_marker_offset=%d",
+                                self.camera.id,
+                                kind,
+                                len(chunk),
+                                chunk.startswith(b"--"),
+                                chunk.find(b"\xff\xd8"),
+                            )
+                    LOG.debug("Camera %s %s stream ended: bytes=%d", self.camera.id, kind, total)
                     return response
-        except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError):
+        except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as exc:
+            LOG.debug(
+                "Camera %s %s connection ended: %s bytes_delivered=%d", self.camera.id, kind, type(exc).__name__, total
+            )
             if response is not None and response.prepared:
                 return response
             return web.json_response(
@@ -219,17 +282,37 @@ class Video:
                     source = ""
                     self.error = "Invalid tablet source URL"
                 if not source:
+                    reason = self.ha.state(self.camera.stream_entity)
+                    if self.wait_reason != reason:
+                        LOG.debug(
+                            "Camera %s waiting for stream: sensor=%s state=%s url_available=%s",
+                            self.camera.id,
+                            self.camera.stream_entity,
+                            reason,
+                            bool(self.ha.stream_url(self.camera.stream_entity)),
+                        )
+                        self.wait_reason = reason
                     self.error = "Tablet stream unavailable; enable Camera Stream and keep Companion App in foreground"
                     self.jpeg = b""
                     await asyncio.sleep(2)
                     continue
+                self.wait_reason = None
                 c = self.camera
+                LOG.debug(
+                    "Camera %s encoder starting: size=%dx%d fps=%d bitrate=%d",
+                    c.id,
+                    c.width,
+                    c.height,
+                    c.fps,
+                    c.bitrate,
+                )
                 sub_width, sub_height = max(160, c.width // 4 * 2), max(120, c.height // 4 * 2)
                 args = [
                     "ffmpeg",
                     "-hide_banner",
                     "-loglevel",
-                    "error",
+                    "info" if LOG.isEnabledFor(logging.DEBUG) else "error",
+                    "-nostats",
                     "-nostdin",
                     "-y",
                     "-rw_timeout",
@@ -284,7 +367,10 @@ class Video:
                     str(snapshot),
                 ]
                 self.process = await asyncio.create_subprocess_exec(
-                    *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+                    *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
+                )
+                self.output_task = asyncio.create_task(
+                    drain_output(getattr(self.process, "stderr", None), LOG, "FFmpeg " + c.id)
                 )
                 self.active_url = source
                 self.error = "Starting video encoder"
@@ -295,6 +381,8 @@ class Video:
                         await asyncio.sleep(1)
                         now = asyncio.get_running_loop().time()
                         if snapshot.exists() and snapshot.stat().st_mtime_ns != previous:
+                            if previous == 0:
+                                LOG.debug("Camera %s first encoded snapshot received", c.id)
                             previous = snapshot.stat().st_mtime_ns
                             self.jpeg = snapshot.read_bytes()
                             self.last_frame = now
@@ -302,7 +390,15 @@ class Video:
                         if self.source() != source or now - max(self.last_frame, started) > 30:
                             break
                 finally:
+                    LOG.debug(
+                        "Camera %s encoder ending: exit=%s frame_age=%s",
+                        c.id,
+                        self.process.returncode,
+                        round(asyncio.get_running_loop().time() - self.last_frame, 1) if self.last_frame else "none",
+                    )
                     await terminate(self.process)
+                    await finish_output(self.output_task)
+                    self.output_task = None
                     self.process = None
                     self.active_url = ""
                     self.jpeg = b""
@@ -315,6 +411,7 @@ class Video:
                 await asyncio.sleep(delay)
         finally:
             await terminate(self.process)
+            await finish_output(self.output_task)
             await self.session.close()
             await runner.cleanup()
             snapshot.unlink(missing_ok=True)

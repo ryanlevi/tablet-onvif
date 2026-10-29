@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import socket
 import struct
 import time
@@ -8,6 +9,8 @@ import uuid
 from xml.etree import ElementTree as ET
 
 from defusedxml.ElementTree import fromstring
+
+LOG = logging.getLogger(__name__)
 
 D = "http://schemas.xmlsoap.org/ws/2005/04/discovery"
 A = "http://schemas.xmlsoap.org/ws/2004/08/addressing"
@@ -71,6 +74,7 @@ class Discovery(asyncio.DatagramProtocol):
                 scopes = operation.findtext(f"{{{D}}}Scopes", "").split()
                 cameras = [c for c in cameras if all(s in self.scopes(c).split() for s in scopes)]
                 if cameras:
+                    LOG.debug("WS-Discovery Probe matched %d cameras", len(cameras))
                     self.send("ProbeMatches", cameras, addr, relates)
             elif name == "Resolve":
                 target = operation.findtext(f"{{{A}}}EndpointReference/{{{A}}}Address", "")
