@@ -1,0 +1,162 @@
+:root {
+  color-scheme: dark;
+  --bg: #10151c;
+  --panel: #19222d;
+  --edge: #304252;
+  --text: #eaf2f8;
+  --muted: #a9bbca;
+  --accent: #83e5c5;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+}
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 36px 24px;
+}
+header,
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+header {
+  margin-bottom: 30px;
+  align-items: flex-start;
+}
+h1 {
+  font-size: 42px;
+  letter-spacing: -1.5px;
+  margin: 4px 0;
+}
+h2 {
+  font-size: 21px;
+  margin: 0 0 16px;
+}
+h3 {
+  margin: 0;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+p {
+  margin: 6px 0 20px;
+  color: var(--muted);
+}
+section,
+.camera,
+.status-card {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.camera,
+.status-card {
+  background: #111b24;
+  margin: 16px 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+input {
+  display: block;
+  background: #0e1720;
+  color: var(--text);
+  border: 1px solid #415969;
+  border-radius: 6px;
+  width: 100%;
+  padding: 11px;
+  margin-top: 5px;
+  font: inherit;
+}
+input[type="checkbox"] {
+  display: inline;
+  width: auto;
+  margin: 0 8px;
+}
+button {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #10281f;
+  font: 600 14px system-ui;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--edge);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.badge {
+  border: 1px solid var(--edge);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.muted,
+footer {
+  font-size: 13px;
+  color: var(--muted);
+}
+#message:not(:empty) {
+  border: 1px solid var(--accent);
+  padding: 14px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+}
+#errors {
+  color: #ffc8b7;
+}
+code {
+  overflow-wrap: anywhere;
+}
+img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+footer {
+  padding: 20px 0;
+}
+@media (max-width: 600px) {
+  header,
+  .row {
+    flex-wrap: wrap;
+  }
+  main {
+    padding: 24px 14px;
+  }
+  section {
+    padding: 16px;
+  }
+  h1 {
+    font-size: 34px;
+  }
+}

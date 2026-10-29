@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tablet ONVIF</title>
+    <link rel="stylesheet" href="static/app.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">HOME ASSISTANT · COMPANION CAMERAS</span>
+          <h1>Tablet ONVIF</h1>
+          <p>Your wall tablet, available to your NVR.</p>
+        </div>
+        <span class="badge">Developer preview · 0.1.1</span>
+      </header>
+      <div id="message" role="status" aria-live="polite"></div>
+      <section id="login">
+        <h2>Connect to the bridge</h2>
+        <p>
+          For standalone Docker, enter the admin token stored in the data
+          directory. Home Assistant ingress signs you in automatically.
+        </p>
+        <form id="login-form">
+          <label
+            >Admin token<input
+              id="token"
+              type="password"
+              autocomplete="off" /></label
+          ><button>Connect</button>
+        </form>
+        <button id="ingress" class="secondary">
+          Open through Home Assistant ingress
+        </button>
+      </section>
+      <div id="content" hidden>
+        <section>
+          <div class="row">
+            <h2>Connection</h2>
+            <span id="connection" class="badge"></span>
+          </div>
+          <div id="errors"></div>
+          <form id="settings">
+            <div class="grid">
+              <label
+                >Home Assistant URL<input
+                  id="ha-url"
+                  type="url"
+                  required /></label
+              ><label
+                >RTSP port<input
+                  id="rtsp-port"
+                  type="number"
+                  min="1024"
+                  max="65535"
+                  required /></label
+              ><label
+                >Discovery interface IPv4<input id="interface" required
+              /></label>
+            </div>
+            <p class="muted">
+              The default HA URL uses the Supervisor connection. Docker installs
+              use HA_URL and HA_TOKEN. Use the host’s LAN IPv4 as the discovery
+              interface if multicast uses the wrong network.
+            </p>
+            <div class="row">
+              <h2>Cameras</h2>
+              <button id="add" type="button" class="secondary">
+                Add camera manually
+              </button>
+            </div>
+            <div id="cameras"></div>
+            <p class="muted">
+              Saving restarts the video bridge and disconnects NVR streams
+              briefly. Empty password fields retain saved secrets.
+            </p>
+            <button id="save">Save and restart bridge</button>
+          </form>
+        </section>
+        <section>
+          <div class="row">
+            <h2>Available tablets</h2>
+            <button id="refresh" class="secondary">Refresh</button>
+          </div>
+          <p class="muted">
+            Enable Camera Stream and Camera Motion in the iPad’s Companion App.
+            Keep the app open in kiosk mode.
+          </p>
+          <div id="tablets"></div>
+        </section>
+        <section>
+          <h2>Live status</h2>
+          <div id="status"></div>
+        </section>
+        <footer>
+          Local video. Direct Home Assistant motion events. No MQTT required.
+          ONVIF compatibility is under validation.
+        </footer>
+      </div>
+    </main>
+    <script src="static/app.js" defer></script>
+  </body>
+</html>

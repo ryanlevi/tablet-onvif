@@ -1,0 +1,11 @@
+.venv/
+.env
+data/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.DS_Store
+
+auto.crt
+auto.key

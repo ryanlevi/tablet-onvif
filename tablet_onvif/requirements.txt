@@ -1,0 +1,3 @@
+aiohttp>=3.11,<4
+PyYAML>=6.0,<7
+defusedxml>=0.7,<1

@@ -1,0 +1,14 @@
+services:
+  tablet-onvif:
+    build: ./tablet_onvif
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    environment:
+      HA_URL: ${HA_URL:?Set HA_URL in .env}
+      HA_TOKEN: ${HA_TOKEN:?Set HA_TOKEN in .env}
+      ADMIN_HOST: 127.0.0.1
+    volumes:
+      - ./data:/data
+    security_opt:
+      - no-new-privileges:true

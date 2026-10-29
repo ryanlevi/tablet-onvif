@@ -1,0 +1,28 @@
+name: Checks
+on: [push, pull_request]
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r tablet_onvif/requirements.txt -r requirements-dev.txt
+      - run: ruff check tablet_onvif tests
+      - run: pytest -q
+      - run: node --check tablet_onvif/bridge/static/app.js
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: tablet_onvif
+          platforms: linux/amd64,linux/arm64
+          push: false
