@@ -290,8 +290,13 @@ class Bridge:
 
         async def preview(request):
             video = next((v for v in self.videos if v.camera.id == request.match_info["id"]), None)
-            if not video or not video.status()["video_available"]:
-                raise web.HTTPServiceUnavailable(text="No live frame available")
+            if not video or not video.camera.enabled or not video.status()["video_available"]:
+                return web.json_response(
+                    {
+                        "error": "No fresh video frame is available. The camera may still be starting or its stream has stopped."
+                    },
+                    status=503,
+                )
             return web.Response(body=video.jpeg, content_type="image/jpeg")
 
         async def preview_session(request):

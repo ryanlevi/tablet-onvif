@@ -114,3 +114,32 @@ def test_expired_or_forged_preview_session_cannot_authorize(tmp_path, monkeypatc
 
     monkeypatch.setattr(app_module.time, "time", lambda: 99999999999)
     assert not bridge.valid_preview_cookie(cookie)
+
+
+async def test_compatibility_preview_uses_fresh_encoded_frames_and_requires_admin(camera, tmp_path, monkeypatch):
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    bridge = Bridge(Store(tmp_path))
+    bridge.settings = Settings(cameras=[camera])
+    video = Video(camera, SimpleNamespace(), 8556, tmp_path)
+    video.process = SimpleNamespace(returncode=None)
+    video.jpeg = (FIXTURES / "red.jpg").read_bytes()
+    video.last_frame = asyncio.get_running_loop().time()
+    bridge.videos = [video]
+    async with TestClient(TestServer(bridge.admin_app())) as client:
+        headers = {"Authorization": "Bearer " + bridge.store.admin_token}
+        assert (await client.get("/api/preview/wall_tablet")).status == 401
+        preview_cookie = {"Cookie": "tablet_onvif_preview=" + bridge.preview_cookie()}
+        assert (await client.get("/api/preview/wall_tablet", headers=preview_cookie)).status == 401
+        response = await client.get("/api/preview/wall_tablet", headers=headers)
+        assert response.status == 200 and response.content_type == "image/jpeg"
+        assert await response.read() == video.jpeg
+        assert response.headers["Cache-Control"] == "no-store"
+        video.jpeg = (FIXTURES / "blue.jpg").read_bytes()
+        response = await client.get("/api/preview/wall_tablet", headers=headers)
+        assert await response.read() == video.jpeg
+        video.last_frame -= 20
+        response = await client.get("/api/preview/wall_tablet", headers=headers)
+        assert response.status == 503 and "fresh" in (await response.json())["error"]
+        video.last_frame = asyncio.get_running_loop().time()
+        camera.enabled = False
+        assert (await client.get("/api/preview/wall_tablet", headers=headers)).status == 503

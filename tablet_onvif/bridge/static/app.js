@@ -46,6 +46,11 @@ function jsonOptions(method, data) {
   };
 }
 function stopView(view) {
+  clearTimeout(view.frameTimer);
+  view.frameController?.abort();
+  view.frameController = null;
+  if (view.frameUrl) URL.revokeObjectURL(view.frameUrl);
+  view.frameUrl = null;
   if (view.image) {
     view.image.onerror = null;
     view.image.removeAttribute("src");
@@ -53,6 +58,51 @@ function stopView(view) {
     view.image = null;
   }
   view.live.textContent = "Live view";
+  view.previewError = "";
+  view.error.textContent = "";
+}
+function framePreview(view, camera) {
+  // Some browsers/ingress proxies reject an otherwise working multipart stream.
+  // Use the encoder's JPEGs without opening more connections to the tablet.
+  const image = view.image;
+  image.onerror = null;
+  image.removeAttribute("src");
+  const controller = new AbortController();
+  view.frameController = controller;
+  const refreshFrame = async () => {
+    let nextUrl;
+    try {
+      const response = await api(`preview/${encodeURIComponent(camera.id)}`, {
+        signal: controller.signal,
+      });
+      nextUrl = URL.createObjectURL(await response.blob());
+      if (controller.signal.aborted) return;
+      image.src = nextUrl;
+      await image.decode();
+      if (controller.signal.aborted) return;
+      if (view.frameUrl) URL.revokeObjectURL(view.frameUrl);
+      view.frameUrl = nextUrl;
+      nextUrl = null;
+      view.previewError = "";
+      view.error.textContent =
+        "Compatibility preview · updates once per second.";
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      image.removeAttribute("src");
+      if (view.frameUrl) URL.revokeObjectURL(view.frameUrl);
+      view.frameUrl = null;
+      view.previewError = e.status
+        ? e.message
+        : "The browser could not display the preview frame.";
+      view.error.textContent = `${view.previewError} Retrying…`;
+    } finally {
+      if (nextUrl) URL.revokeObjectURL(nextUrl);
+      if (!controller.signal.aborted)
+        view.frameTimer = setTimeout(refreshFrame, 1000);
+    }
+  };
+  view.error.textContent = "Switching to compatibility preview…";
+  refreshFrame();
 }
 function clearViews() {
   for (const view of views.values()) stopView(view);
@@ -63,9 +113,7 @@ function sourceFields() {
   $("#source-fields").hidden = !$("#source-auth").checked;
   $("#source-user").required = $("#source-auth").checked;
   const c = editing?.camera;
-  $("#source-login-hint").hidden =
-    !$("#source-auth").checked ||
-    Boolean(c);
+  $("#source-login-hint").hidden = !$("#source-auth").checked || Boolean(c);
 }
 function setup(tablet, camera = null) {
   editing = { tablet, camera };
@@ -194,10 +242,7 @@ function createView(camera) {
       image.alt = `Live camera stream from ${camera.name}`;
       view.image = image;
       image.onerror = () => {
-        stopView(view);
-        view.previewError =
-          "The live view stopped. Keep Home Assistant open on the tablet, then try again.";
-        error.textContent = view.previewError;
+        framePreview(view, camera);
       };
       image.src = `api/live/${encodeURIComponent(camera.id)}`;
       preview.append(image);

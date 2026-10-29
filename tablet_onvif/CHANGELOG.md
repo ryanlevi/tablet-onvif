@@ -1,3 +1,9 @@
+# 0.2.3
+
+- Automatically switch to a compatibility preview when the browser rejects the MJPEG live view.
+- Refresh the encoder's decoded JPEG once per second without adding tablet stream connections; NVR video remains unchanged.
+- Report unavailable/stale preview frames accurately and retry automatically. Stop cancels pending requests and releases images.
+
 # 0.2.2
 
 - Reuse the incoming tablet stream login for newly configured cameras; generate an NVR login when source authentication is absent.

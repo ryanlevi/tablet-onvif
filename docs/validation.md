@@ -2,7 +2,7 @@
 
 Validated on the development Mac during initial creation:
 
-- 61 Python tests pass: authentication (WS-Security/Basic/Digest/replay/time window), SOAP HTTP requests, motion delivery/clear/subscription behavior, XML parser hardening, configuration secrecy/permissions, ingress access control, actual mock HA WebSocket state changes/disconnect, source credential relay and RTSP access configuration.
+- 62 Python tests pass: authentication (WS-Security/Basic/Digest/replay/time window), SOAP HTTP requests, motion delivery/clear/subscription behavior, XML parser hardening, configuration secrecy/permissions, ingress access control, actual mock HA WebSocket state changes/disconnect, source credential relay and RTSP access configuration.
 - Ruff source checks and JavaScript syntax check pass.
 - App metadata, repository metadata, Compose and CI YAML parse.
 - Pinned MediaMTX 1.21.2 official native Darwin ARM64 binary accepted the generated configuration (`--validate-conf`) and started/stopped its RTSP listener. A DESCRIBE request reached the listener (404 expected without a publisher). This does not prove remote authentication or encoded video delivery.
@@ -18,3 +18,5 @@ MVP setup (0.2.0): browser-checked selecting a discovered tablet, enabling it wi
 Debug logging (0.2.1): tested Supervisor option precedence/default-off behavior, raw/URL-encoded/base64 credential redaction, authorization header and URL token removal, redaction of exception details, child-pipe draining and dropping entire oversized records. Real browser-preview failure diagnosis still requires logs from the installed app.
 
 Shared credentials (0.2.2): regression tests cover incoming login defaults, linked credential rotation, authenticated fallback when source authentication is removed, preservation of existing NVR credentials, repeated camera usernames and rejection of the reserved anonymous username. These are local tests; real NVR adoption remains unverified.
+
+Preview compatibility (0.2.3): a real browser was given a deliberately invalid synthetic MJPEG stream. It automatically switched to decoded JPEG frames, displayed a 64×64 test image, refreshed its blob URL on successive frames, and removed the image on Stop. Backend tests verify snapshot authentication, fresh frame updates, cache prevention, and rejection of stale/disabled camera frames. This is synthetic validation; the installed HA ingress path still needs user verification.

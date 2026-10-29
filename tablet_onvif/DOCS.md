@@ -18,3 +18,5 @@ Keep all ports local. Settings and credentials persist in app data. Back up app 
 Open this app's **Configuration** tab, enable **Debug logging**, save, then restart it. Open Live view and reproduce the error once. The **Logs** tab will include connection stages, separate preview/encoder source requests, HTTP status, bytes delivered, sanitized encoder/server output and ONVIF requests. Turn Debug logging off and restart after diagnosis.
 
 Secrets are redacted, but logs contain LAN addresses and entity IDs, so review before posting them publicly. If Video ready appears but Live view fails, include the `browser-preview` and `encoder-relay` lines around the failure.
+
+If your browser or Home Assistant ingress rejects the live MJPEG viewer, it automatically switches to **Compatibility preview**, refreshing the encoder's decoded image once per second. This affects only the web preview; NVR video keeps its configured frame rate. The preview reports missing fresh frames and retries until you stop it.
